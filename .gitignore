@@ -1,0 +1,17 @@
+Library/
+Temp/
+Logs/
+Obj/
+Build/
+Builds/
+UserSettings/
+.vs/
+.vscode/
+*.csproj
+*.sln
+*.dll
+*.so
+*.dylib
+*.exe
+*.apk
+*.aab
