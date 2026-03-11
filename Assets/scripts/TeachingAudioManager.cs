@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using System.Collections;
 using TMPro;
 
@@ -27,9 +28,10 @@ public class TeachingAudioManager : MonoBehaviour
     [Header("Subtitle Text")]
     public TextMeshProUGUI subtitleText;
 
+    private bool isPaused = false;
+
     void Start()
     {
-        // Start background music quietly
         if (backgroundMusic != null && musicSource != null)
         {
             musicSource.clip = backgroundMusic;
@@ -38,184 +40,181 @@ public class TeachingAudioManager : MonoBehaviour
             musicSource.Play();
         }
 
-        // Start the full lesson
         StartCoroutine(RunFullLesson());
+    }
+
+    // AI PANEL PAUSE
+    public void PauseLesson()
+    {
+        isPaused = true;
+
+        if (narrationSource != null)
+            narrationSource.Pause();
+
+        if (musicSource != null)
+            musicSource.volume = 0.03f;
+
+        if (subtitleText != null)
+            subtitleText.text = "Lesson paused. Ask your doubt!";
+    }
+
+    // AI PANEL RESUME
+    public void ResumeLesson()
+    {
+        isPaused = false;
+
+        if (narrationSource != null)
+            narrationSource.UnPause();
+
+        if (musicSource != null)
+            musicSource.volume = 0.08f;
+
+        if (subtitleText != null)
+            subtitleText.text = "Lesson resumed. Welcome back!";
+    }
+
+    IEnumerator WaitWhilePaused()
+    {
+        while (isPaused)
+            yield return null;
     }
 
     IEnumerator RunFullLesson()
     {
-        // ══════════════════════════════════════
-        // SEGMENT 1 — INTRODUCTION
-        // Curve stays still, just audio plays
-        // ══════════════════════════════════════
+        // INTRO
         SetSubtitle("Welcome to Logistic Regression!");
         yield return StartCoroutine(PlayAndWait(clip_Intro));
+
         yield return new WaitForSeconds(1.5f);
 
-        // ══════════════════════════════════════
-        // SEGMENT 2 — SIGMOID EXPLANATION
-        // Curve stays still, audio explains it
-        // ══════════════════════════════════════
-        SetSubtitle("This S-shaped curve is the Sigmoid function...");
+        // SIGMOID
+        SetSubtitle("This S-shaped curve is called the sigmoid function.");
         yield return StartCoroutine(PlayAndWait(clip_SigmoidExplain));
+
         yield return new WaitForSeconds(1f);
 
-        // ══════════════════════════════════════
-        // SEGMENT 3 — WEIGHT DEMO
-        // Slider moves automatically with audio
-        // ══════════════════════════════════════
-        SetSubtitle("Watch what happens when we change the Weight...");
+        // =============================
+        // WEIGHT DEMO (125 seconds)
+        // =============================
 
-        // Start playing audio
         narrationSource.clip = clip_WeightDemo;
         narrationSource.Play();
 
-        // Wait 4 seconds — audio says
-        // "Watch the weight slider, increasing slowly"
-        yield return new WaitForSeconds(4f);
+        SetSubtitle("Watch the weight slider.");
+        yield return new WaitForSeconds(8f);
 
-        // ANIMATE weight UP — curve gets steeper
-        // Audio is saying "See how the curve gets steeper"
-        SetSubtitle("Higher weight = Steeper curve = More confident!");
-        yield return StartCoroutine(
-            sliderController.AnimateWeightTo(3.5f, 4f));
+        SetSubtitle("Did you see that?");
+        yield return new WaitForSeconds(12f); // 20 - 8
 
-        // Wait 3 seconds — audio explains steep curve
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("Now watch when we bring the weight close to zero.");
+        yield return StartCoroutine(sliderController.AnimateWeightTo(0.1f, 4f));
+        yield return new WaitForSeconds(23f); // 47 - 24
 
-        // ANIMATE weight to ZERO — curve goes flat
-        // Audio is saying "watch weight close to zero"
-        SetSubtitle("Weight near Zero = Flat curve = No confidence!");
-        yield return StartCoroutine(
-            sliderController.AnimateWeightTo(0.1f, 3f));
+        SetSubtitle("Look at that flat curve.");
+        yield return new WaitForSeconds(6f); // 53 - 47
 
-        // Wait 3 seconds — audio explains flat curve
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("Now make the weight negative.");
+        yield return StartCoroutine(sliderController.AnimateWeightTo(-2.5f, 4f));
+        yield return new WaitForSeconds(33f); // 86 - 53
 
-        // ANIMATE weight NEGATIVE — curve flips
-        // Audio is saying "watch when weight goes negative"
-        SetSubtitle("Negative weight = Flipped curve!");
-        yield return StartCoroutine(
-            sliderController.AnimateWeightTo(-2.5f, 3f));
+        SetSubtitle("Resetting the weight back to normal.");
+        yield return StartCoroutine(sliderController.AnimateWeightTo(1.5f, 3f));
+        yield return new WaitForSeconds(36f); // 122 - 86
 
-        // Wait 3 seconds — audio explains flipped curve
-        yield return new WaitForSeconds(3f);
+        // =============================
+        // BIAS DEMO (111 seconds)
+        // =============================
 
-        // Reset weight back to normal
-        SetSubtitle("Resetting weight back to normal...");
-        yield return StartCoroutine(
-            sliderController.AnimateWeightTo(1.5f, 2f));
-
-        // Wait for audio to finish
-        yield return new WaitForSeconds(2f);
-
-        // ══════════════════════════════════════
-        // SEGMENT 4 — BIAS DEMO
-        // Boundary line moves with audio
-        // ══════════════════════════════════════
-        SetSubtitle("Now let us understand the Bias parameter...");
-
-        // Start playing audio
         narrationSource.clip = clip_BiasDemo;
         narrationSource.Play();
 
-        // Wait 4 seconds — audio introduces bias
-        yield return new WaitForSeconds(4f);
+        SetSubtitle("Move the bias slider.");
+        yield return new WaitForSeconds(19f);
 
-        // ANIMATE bias RIGHT — boundary moves right
-        // Audio saying "watch the curve slide"
-        SetSubtitle("Bias shifts the Decision Boundary left and right!");
-        yield return StartCoroutine(
-            sliderController.AnimateBiasTo(2.5f, 4f));
+        SetSubtitle("Did you notice the boundary sliding?");
+        yield return new WaitForSeconds(6f); // 25 - 19
 
-        // Wait 3 seconds — audio explains
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("When bias becomes positive.");
+        yield return StartCoroutine(sliderController.AnimateBiasTo(2.5f, 3f));
+        yield return new WaitForSeconds(29f); // 54 - 25
 
-        // ANIMATE bias LEFT
-        SetSubtitle("Negative bias moves boundary to the right...");
-        yield return StartCoroutine(
-            sliderController.AnimateBiasTo(-2.5f, 4f));
+        SetSubtitle("When bias becomes negative.");
+        yield return StartCoroutine(sliderController.AnimateBiasTo(-2.5f, 3f));
+        yield return new WaitForSeconds(4f); // 58 - 54
 
-        // Wait 3 seconds
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("Resetting bias back to zero.");
+        yield return StartCoroutine(sliderController.AnimateBiasTo(0f, 3f));
+        yield return new WaitForSeconds(50f); // 108 - 58
 
-        // Reset bias to center
-        SetSubtitle("Resetting bias back to zero...");
-        yield return StartCoroutine(
-            sliderController.AnimateBiasTo(0f, 2f));
+        // =============================
+        // DATA POINT DEMO (104 seconds)
+        // =============================
 
-        // Wait for audio to finish
-        yield return new WaitForSeconds(2f);
-
-        // ══════════════════════════════════════
-        // SEGMENT 5 — DATA POINTS
-        // Dots appear one by one with audio
-        // ══════════════════════════════════════
-        SetSubtitle("Now let us add some training data...");
-
-        // Start playing audio
         narrationSource.clip = clip_DataPoints;
         narrationSource.Play();
 
-        // Wait 3 seconds — audio introduces data
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("New data points appear.");
+        yield return new WaitForSeconds(9f);
 
-        // Spawn dots one by one
-        SetSubtitle("Red dots = Class 0    Blue dots = Class 1");
-        yield return StartCoroutine(
-            dataPointManager.SpawnAllDotsAnimated());
+        SetSubtitle("Red dots represent class zero.");
+        yield return new WaitForSeconds(4f); // 13 - 9
 
-        // Wait for audio to finish
-        yield return new WaitForSeconds(4f);
+        SetSubtitle("Blue dots represent class one.");
+        yield return StartCoroutine(dataPointManager.SpawnAllDotsAnimated());
+        yield return new WaitForSeconds(13f); // 26 - 13
 
-        // Show how boundary sits between clusters
-        SetSubtitle("The boundary sits between the two groups!");
-        yield return new WaitForSeconds(3f);
+        SetSubtitle("The decision boundary sits between the two groups.");
+        yield return new WaitForSeconds(15f); // 41 - 26
 
-        // ══════════════════════════════════════
-        // SEGMENT 6 — SUMMARY
-        // All elements visible, audio recaps
-        // ══════════════════════════════════════
-        SetSubtitle("Let us recap everything we learned today...");
+        // =============================
+        // SUMMARY
+        // =============================
+
+        SetSubtitle("Let us recap everything we learned today.");
         yield return StartCoroutine(PlayAndWait(clip_Summary));
 
-        // Fade out music
         SetSubtitle("See you in the next lesson!");
         yield return StartCoroutine(FadeOutMusic(3f));
 
-        yield return new WaitForSeconds(2f);
         SetSubtitle("");
     }
 
-    // ── Play audio and wait for it to finish ──
     IEnumerator PlayAndWait(AudioClip clip)
     {
         if (clip == null) yield break;
+
         narrationSource.clip = clip;
         narrationSource.Play();
-        yield return new WaitForSeconds(clip.length);
+
+        float elapsed = 0f;
+
+        while (elapsed < clip.length)
+        {
+            if (!isPaused)
+                elapsed += Time.deltaTime;
+
+            yield return null;
+        }
     }
 
-    // ── Update subtitle text ──
     void SetSubtitle(string message)
     {
         if (subtitleText != null)
             subtitleText.text = message;
     }
 
-    // ── Fade out background music ──
     IEnumerator FadeOutMusic(float duration)
     {
-        if (musicSource == null) yield break;
         float startVolume = musicSource.volume;
-        float elapsed = 0f;
-        while (elapsed < duration)
+        float time = 0f;
+
+        while (time < duration)
         {
-            elapsed += Time.deltaTime;
-            musicSource.volume = Mathf.Lerp(
-                startVolume, 0f, elapsed / duration);
+            time += Time.deltaTime;
+            musicSource.volume = Mathf.Lerp(startVolume, 0f, time / duration);
             yield return null;
         }
+
         musicSource.Stop();
     }
 }
