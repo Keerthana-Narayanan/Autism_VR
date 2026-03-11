@@ -8,7 +8,7 @@
 // public class AIDoubtSolver : MonoBehaviour
 // {
 //     [Header("Gemini API")]
-//     public string apiKey ="AIzaSyDnv-GElQyA_4qjKDdEuoArurVL7AzRw5A";
+//     public string apiKey ="AIzaSyBz7n37OcIJO8IbTcLy8mF2fnfexaMLu3Q";
 //     private string apiUrl =
 // "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 //     [Header("UI Elements")]
@@ -319,7 +319,7 @@ public class AIDoubtSolver : MonoBehaviour
     // ═══════════════════════════════════════════
 
     [Header("Gemini API")]
-    public string apiKey = "AIzaSyDnv-GElQyA_4qjKDdEuoArurVL7AzRw5A";
+    public string apiKey = "AIzaSyBz7n37OcIJO8IbTcLy8mF2fnfexaMLu3Q";
     private string apiUrl =
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
