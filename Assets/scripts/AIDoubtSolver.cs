@@ -311,31 +311,31 @@ using TMPro;
 using System.Collections;
 using System.Text;
 using UnityEngine.Networking;
+using System;
 
 public class AIDoubtSolver : MonoBehaviour
 {
-    // ═══════════════════════════════════════════
-    //  INSPECTOR FIELDS
-    // ═══════════════════════════════════════════
-
     [Header("Gemini API")]
-    public string apiKey = "AIzaSyBz7n37OcIJO8IbTcLy8mF2fnfexaMLu3Q";
+    public string apiKey = "";
     private string apiUrl =
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+        "gemini-2.0-flash:generateContent";
 
-    [Header("Layout Roots")]
-    public RectTransform tutorialRoot;       // TutorialRoot object
-    public GameObject    aiPanel;            // AIDrawer object
-    public Button        floatingAskButton;  // AskAIButton
+    [Header("Screens")]
+    public GameObject tutorialScreen;
+    public GameObject chatbotScreen;
 
-    [Header("Drawer UI")]
+    [Header("Main Screen")]
+    public Button askAIButton;
+
+    [Header("Chatbot UI")]
+    public TextMeshProUGUI chatHistoryText;
     public TMP_InputField  questionInputField;
-    public TextMeshProUGUI answerText;
     public TextMeshProUGUI statusText;
-    public Button          askButton;
-    public Button          closeButton;
-    public Button          listenButton;
-    public Button          speakAnswerButton;
+    public Button          sendButton;
+    public Button          voiceButton;
+    public Button          quitButton;
+    public Button          speakButton;
 
     [Header("Audio")]
     public AudioSource audioSource;
@@ -343,570 +343,528 @@ public class AIDoubtSolver : MonoBehaviour
     [Header("Teaching Manager")]
     public TeachingAudioManager teachingManager;
 
-    // ═══════════════════════════════════════════
-    //  PRIVATE VARIABLES
-    // ═══════════════════════════════════════════
-    private string    lastAnswer   = "";
-    private bool      isRecording  = false;
-    private bool      drawerOpen   = false;
-    private Coroutine slideRoutine = null;
-    private Coroutine pulseRoutine = null;
+    private string  lastAnswer  = "";
+    private bool    isRecording = false;
+    private AudioClip recordedClip = null;
+    private string  chatHistory = "";
 
-    private RectTransform drawerRT;
-
-    const float DRAWER_WIDTH   = 380f;
-    const float SLIDE_DURATION = 0.35f;
+    const int SAMPLE_RATE     = 16000;
+    const int MAX_RECORD_SECS = 10;
 
     // ═══════════════════════════════════════════
     //  START
     // ═══════════════════════════════════════════
     void Start()
     {
-        // Get drawer RectTransform
-        if (aiPanel != null)
-            drawerRT = aiPanel.GetComponent<RectTransform>();
+        // Show tutorial, hide chatbot at start
+        ShowTutorial();
 
-        // Set drawer starting position (hidden off screen to the right)
-        InitDrawerPosition();
+        // Wire buttons
+        if (askAIButton != null)
+            askAIButton.onClick.AddListener(
+                OpenChatbot);
 
-        // Apply visual design
-        ApplyDesign();
+        if (sendButton != null)
+            sendButton.onClick.AddListener(
+                OnSendClicked);
 
-        // Wire up all button clicks
-        if (askButton != null)
-            askButton.onClick.AddListener(OnAskButtonClicked);
+        if (voiceButton != null)
+            voiceButton.onClick.AddListener(
+                ToggleVoice);
 
-        if (closeButton != null)
-            closeButton.onClick.AddListener(CloseDrawer);
+        if (quitButton != null)
+            quitButton.onClick.AddListener(
+                CloseChatbot);
 
-        if (listenButton != null)
-            listenButton.onClick.AddListener(StartVoiceInput);
-
-        if (speakAnswerButton != null)
-            speakAnswerButton.onClick.AddListener(SpeakAnswer);
-
-        if (floatingAskButton != null)
-            floatingAskButton.onClick.AddListener(OpenDrawer);
+        if (speakButton != null)
+            speakButton.onClick.AddListener(
+                SpeakLastAnswer);
 
         if (questionInputField != null)
-            questionInputField.onSubmit.AddListener((_) => OnAskButtonClicked());
+            questionInputField.onSubmit
+                .AddListener((_) =>
+                    OnSendClicked());
     }
 
     // ═══════════════════════════════════════════
-    //  DRAWER POSITION SETUP
+    //  SHOW TUTORIAL
     // ═══════════════════════════════════════════
-    void InitDrawerPosition()
+    void ShowTutorial()
     {
-        if (drawerRT == null) return;
-
-        drawerRT.anchorMin        = new Vector2(1f, 0f);
-        drawerRT.anchorMax        = new Vector2(1f, 1f);
-        drawerRT.pivot            = new Vector2(1f, 0.5f);
-        drawerRT.sizeDelta        = new Vector2(DRAWER_WIDTH, 0f);
-        drawerRT.anchoredPosition = new Vector2(DRAWER_WIDTH, 0f); // hidden off screen
+        if (tutorialScreen != null)
+            tutorialScreen.SetActive(true);
+        if (chatbotScreen != null)
+            chatbotScreen.SetActive(false);
     }
 
     // ═══════════════════════════════════════════
-    //  OPEN DRAWER  ← this is what button calls
+    //  OPEN CHATBOT
     // ═══════════════════════════════════════════
-    public void OpenDrawer()
+    public void OpenChatbot()
     {
-        if (drawerOpen) return;
-        drawerOpen = true;
+        // Hide tutorial
+        if (tutorialScreen != null)
+            tutorialScreen.SetActive(false);
 
-        // Pause the lesson
+        // Show chatbot
+        if (chatbotScreen != null)
+            chatbotScreen.SetActive(true);
+
+        // Pause lesson
         if (teachingManager != null)
             teachingManager.PauseLesson();
 
-        // Slide drawer in
-        if (slideRoutine != null) StopCoroutine(slideRoutine);
-        slideRoutine = StartCoroutine(AnimateSlide(open: true));
+        // Reset chat
+        chatHistory = "";
+        UpdateChatDisplay(
+            "<color=#00E5FF><b>AI Teacher</b>" +
+            "</color>\n\n" +
+            "Hi! I am your AI teacher.\n\n" +
+            "You can:\n" +
+            "● Type your question and press SEND\n" +
+            "● Press VOICE to speak your question\n\n" +
+            "Ask me anything about " +
+            "Logistic Regression!");
 
-        // Set welcome message
-        SetWelcomeText();
-        SetStatus(StatusMode.Ready);
+        SetStatus("● READY");
 
-        // Focus input field
         if (questionInputField != null)
         {
+            questionInputField.text = "";
             questionInputField.Select();
             questionInputField.ActivateInputField();
         }
     }
 
-    // Keep old name working too
-    public void OpenPanel() => OpenDrawer();
+    public void OpenPanel() => OpenChatbot();
+    public void OpenDrawer() => OpenChatbot();
 
     // ═══════════════════════════════════════════
-    //  CLOSE DRAWER
+    //  CLOSE CHATBOT
     // ═══════════════════════════════════════════
-    public void CloseDrawer()
+    public void CloseChatbot()
     {
-        if (!drawerOpen) return;
-        drawerOpen = false;
-
-        // Resume the lesson
-        if (teachingManager != null)
-            teachingManager.ResumeLesson();
+        // Stop recording if active
+        if (isRecording)
+        {
+            Microphone.End(null);
+            isRecording = false;
+        }
 
         // Stop audio
-        if (audioSource != null && audioSource.isPlaying)
+        if (audioSource != null &&
+            audioSource.isPlaying)
             audioSource.Stop();
 
-        // Slide drawer out
-        if (slideRoutine != null) StopCoroutine(slideRoutine);
-        slideRoutine = StartCoroutine(AnimateSlide(open: false));
+        // Hide chatbot
+        if (chatbotScreen != null)
+            chatbotScreen.SetActive(false);
 
-        isRecording = false;
+        // Show tutorial
+        if (tutorialScreen != null)
+            tutorialScreen.SetActive(true);
+
+        // Resume lesson
+        if (teachingManager != null)
+            teachingManager.ResumeLesson();
     }
 
     // ═══════════════════════════════════════════
-    //  SLIDE ANIMATION
+    //  SEND TEXT
     // ═══════════════════════════════════════════
-    IEnumerator AnimateSlide(bool open)
-    {
-        float targetDrawerX   = open ? 0f : DRAWER_WIDTH;
-        float targetTutorialR = open ? -DRAWER_WIDTH : 0f;
-
-        float startDrawerX   = drawerRT != null ? drawerRT.anchoredPosition.x : DRAWER_WIDTH;
-        float startTutorialR = tutorialRoot != null ? tutorialRoot.offsetMax.x : 0f;
-
-        float elapsed = 0f;
-
-        while (elapsed < SLIDE_DURATION)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.SmoothStep(0f, 1f, elapsed / SLIDE_DURATION);
-
-            // Move drawer
-            if (drawerRT != null)
-                drawerRT.anchoredPosition =
-                    new Vector2(Mathf.Lerp(startDrawerX, targetDrawerX, t), 0f);
-
-            // Shrink / expand tutorial
-            if (tutorialRoot != null)
-                tutorialRoot.offsetMax =
-                    new Vector2(Mathf.Lerp(startTutorialR, targetTutorialR, t),
-                                tutorialRoot.offsetMax.y);
-
-            yield return null;
-        }
-
-        // Snap to final position
-        if (drawerRT != null)
-            drawerRT.anchoredPosition = new Vector2(targetDrawerX, 0f);
-
-        if (tutorialRoot != null)
-            tutorialRoot.offsetMax =
-                new Vector2(targetTutorialR, tutorialRoot.offsetMax.y);
-    }
-
-    // ═══════════════════════════════════════════
-    //  WELCOME TEXT
-    // ═══════════════════════════════════════════
-    void SetWelcomeText()
-    {
-        if (answerText != null)
-            answerText.text =
-                "<color=#00E5FF><b>Hi! I am your AI teacher.</b></color>\n\n" +
-                "<color=#5A8AAA>Ask me anything about\nLogistic Regression!</color>";
-    }
-
-    // ═══════════════════════════════════════════
-    //  STATUS BAR
-    // ═══════════════════════════════════════════
-    enum StatusMode { Ready, Thinking, Speaking, Listening, Error }
-
-    void SetStatus(StatusMode mode)
-    {
-        if (statusText == null) return;
-
-        if (pulseRoutine != null)
-        {
-            StopCoroutine(pulseRoutine);
-            pulseRoutine = null;
-        }
-
-        switch (mode)
-        {
-            case StatusMode.Ready:
-                statusText.text  = "● READY";
-                statusText.color = HexColor("#00FF88");
-                pulseRoutine     = StartCoroutine(PulseGreen());
-                break;
-            case StatusMode.Thinking:
-                statusText.text  = "◌ THINKING...";
-                statusText.color = HexColor("#FFD700");
-                break;
-            case StatusMode.Speaking:
-                statusText.text  = "▶ SPEAKING";
-                statusText.color = HexColor("#FF2FFF");
-                break;
-            case StatusMode.Listening:
-                statusText.text  = "🎙 LISTENING";
-                statusText.color = HexColor("#6C2FFF");
-                break;
-            case StatusMode.Error:
-                statusText.text  = "✕ ERROR";
-                statusText.color = HexColor("#FF4444");
-                break;
-        }
-    }
-
-    IEnumerator PulseGreen()
-    {
-        while (true)
-        {
-            yield return new WaitForSeconds(1.1f);
-            if (statusText != null && statusText.text.StartsWith("●"))
-            {
-                statusText.color = new Color(0f, 1f, 0.53f, 0.3f);
-                yield return new WaitForSeconds(0.3f);
-                statusText.color = HexColor("#00FF88");
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════
-    //  ASK BUTTON CLICKED
-    // ═══════════════════════════════════════════
-    public void OnAskButtonClicked()
+    void OnSendClicked()
     {
         if (questionInputField == null) return;
 
-        string question = questionInputField.text.Trim();
+        string question =
+            questionInputField.text.Trim();
 
         if (question == "")
         {
-            if (statusText != null)
-            {
-                statusText.text  = "⚠ Type your question first!";
-                statusText.color = HexColor("#FFD700");
-            }
+            SetStatus("Please type a question!");
             return;
         }
 
-        StartCoroutine(AskGemini(question));
+        // Add student question to chat
+        AddToChat(
+            "<color=#00E5FF>You:</color> " +
+            question);
+
         questionInputField.text = "";
+        StartCoroutine(
+            AskGeminiText(question));
     }
 
     // ═══════════════════════════════════════════
-    //  GEMINI API CALL
+    //  VOICE TOGGLE
     // ═══════════════════════════════════════════
-    IEnumerator AskGemini(string question)
+    void ToggleVoice()
     {
-        SetStatus(StatusMode.Thinking);
+        if (!isRecording)
+            StartRecording();
+        else
+            StopRecordingAndAsk();
+    }
 
-        if (answerText != null)
-            answerText.text =
-                "<color=#5A8AAA><i>Processing your question...</i></color>";
+    void StartRecording()
+    {
+        if (Microphone.devices.Length == 0)
+        {
+            SetStatus("No microphone found!");
+            return;
+        }
 
-        if (askButton != null)
-            askButton.interactable = false;
+        isRecording  = true;
+        recordedClip = Microphone.Start(
+            null, false,
+            MAX_RECORD_SECS, SAMPLE_RATE);
 
-        string fullPrompt =
-            "You are a helpful AI teacher explaining Logistic Regression. " +
-            "The student is using an interactive Unity tutorial with a live sigmoid curve " +
-            "f(x)=1/(1+e^(-(w*x+b))) and weight/bias sliders. " +
-            "Answer clearly and friendly in max 60 words. No markdown symbols. " +
+        SetStatus("🎙 Listening... click STOP when done");
+        SetBtnText(voiceButton, "⏹ STOP");
+
+        AddToChat(
+            "<color=#6C2FFF>🎙 Recording..." +
+            "</color>");
+
+        StartCoroutine(AutoStop());
+    }
+
+    IEnumerator AutoStop()
+    {
+        yield return new WaitForSeconds(
+            MAX_RECORD_SECS);
+        if (isRecording)
+            StopRecordingAndAsk();
+    }
+
+    void StopRecordingAndAsk()
+    {
+        if (!isRecording) return;
+        isRecording = false;
+
+        int lastSample =
+            Microphone.GetPosition(null);
+        Microphone.End(null);
+
+        SetBtnText(voiceButton, "🎙 VOICE");
+        SetStatus("Processing your voice...");
+
+        if (recordedClip == null ||
+            lastSample <= 0)
+        {
+            SetStatus("No audio! Try again.");
+            return;
+        }
+
+        float[] samples =
+            new float[lastSample *
+            recordedClip.channels];
+        recordedClip.GetData(samples, 0);
+
+        byte[] wavBytes = ConvertToWav(
+            samples,
+            recordedClip.channels,
+            SAMPLE_RATE);
+
+        AddToChat(
+            "<color=#6C2FFF>You (voice):</color>" +
+            " [Sending to AI...]");
+
+        StartCoroutine(
+            AskGeminiAudio(wavBytes));
+    }
+
+    // ═══════════════════════════════════════════
+    //  GEMINI TEXT
+    // ═══════════════════════════════════════════
+    IEnumerator AskGeminiText(string question)
+    {
+        SetStatus("Thinking...");
+
+        if (sendButton != null)
+            sendButton.interactable = false;
+
+        string prompt =
+            "You are a helpful AI teacher " +
+            "explaining Logistic Regression. " +
+            "The student is using an interactive " +
+            "Unity tutorial with live sigmoid curve " +
+            "and weight/bias sliders. " +
+            "Answer clearly and friendly in " +
+            "max 80 words. No markdown symbols. " +
             "Student question: " + question;
 
-        string jsonBody =
-            "{\"contents\":[{\"parts\":[{\"text\":\"" +
-            EscapeJson(fullPrompt) + "\"}]}]}";
+        string body =
+            "{\"contents\":[{\"parts\":" +
+            "[{\"text\":\"" +
+            EscapeJson(prompt) +
+            "\"}]}]}";
 
-        byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
-        string fullUrl = apiUrl + "?key=" + apiKey;
+        yield return StartCoroutine(
+            SendToGemini(
+                Encoding.UTF8.GetBytes(body)));
 
-        using (UnityWebRequest req = new UnityWebRequest(fullUrl, "POST"))
+        if (sendButton != null)
+            sendButton.interactable = true;
+    }
+
+    // ═══════════════════════════════════════════
+    //  GEMINI AUDIO
+    // ═══════════════════════════════════════════
+    IEnumerator AskGeminiAudio(byte[] wav)
+    {
+        SetStatus("Sending voice to AI...");
+
+        string base64 =
+            Convert.ToBase64String(wav);
+
+        string prompt =
+            "You are a helpful AI teacher " +
+            "explaining Logistic Regression. " +
+            "The student asked a question via voice. " +
+            "Listen and answer clearly in " +
+            "max 80 words. No markdown symbols.";
+
+        string body =
+            "{\"contents\":[{\"parts\":[" +
+            "{\"inline_data\":{" +
+            "\"mime_type\":\"audio/wav\"," +
+            "\"data\":\"" + base64 + "\"}}," +
+            "{\"text\":\"" +
+            EscapeJson(prompt) +
+            "\"}]}]}";
+
+        yield return StartCoroutine(
+            SendToGemini(
+                Encoding.UTF8.GetBytes(body)));
+    }
+
+    // ═══════════════════════════════════════════
+    //  SEND TO GEMINI
+    // ═══════════════════════════════════════════
+    IEnumerator SendToGemini(byte[] body)
+    {
+        string url = apiUrl + "?key=" + apiKey;
+
+        using (UnityWebRequest req =
+            new UnityWebRequest(url, "POST"))
         {
-            req.uploadHandler   = new UploadHandlerRaw(bodyRaw);
-            req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("Content-Type", "application/json");
-            req.SetRequestHeader("User-Agent",   "Unity");
+            req.uploadHandler =
+                new UploadHandlerRaw(body);
+            req.downloadHandler =
+                new DownloadHandlerBuffer();
+            req.SetRequestHeader(
+                "Content-Type",
+                "application/json");
 
             yield return req.SendWebRequest();
 
-            if (askButton != null)
-                askButton.interactable = true;
-
-            if (req.result == UnityWebRequest.Result.Success)
+            if (req.responseCode == 429)
             {
-                string answer = ParseGeminiResponse(req.downloadHandler.text);
+                AddToChat(
+                    "<color=#FF4444>AI: " +
+                    "Too many requests! " +
+                    "Please wait 30 seconds " +
+                    "and try again.</color>");
+                SetStatus("Rate limit! Wait 30s.");
+                yield break;
+            }
+
+            if (req.result ==
+                UnityWebRequest.Result.Success)
+            {
+                string answer =
+                    ParseResponse(
+                        req.downloadHandler.text);
                 lastAnswer = answer;
 
-                if (answerText != null)
-                    answerText.text = answer;
+                AddToChat(
+                    "<color=#00FF88>AI Teacher:" +
+                    "</color> " + answer);
 
-                SetStatus(StatusMode.Ready);
-                StartCoroutine(SpeakWithTTS(answer));
+                SetStatus("● READY");
+                StartCoroutine(Speak(answer));
             }
             else
             {
-                Debug.LogError("Gemini Error: " + req.error);
-                Debug.LogError("Response: " + req.downloadHandler.text);
+                Debug.LogError(req.error);
+                Debug.LogError(
+                    req.downloadHandler.text);
 
-                if (answerText != null)
-                    answerText.text =
-                        "<color=#FF6B6B>Connection failed.\n" +
-                        "Check internet or API key.</color>";
-
-                SetStatus(StatusMode.Error);
+                AddToChat(
+                    "<color=#FF4444>AI: " +
+                    "Connection failed. " +
+                    "Check internet!</color>");
+                SetStatus("Error! Try again.");
             }
         }
     }
 
     // ═══════════════════════════════════════════
-    //  PARSE GEMINI RESPONSE
+    //  PARSE RESPONSE
     // ═══════════════════════════════════════════
-    string ParseGeminiResponse(string json)
+    string ParseResponse(string json)
     {
         try
         {
-            int textIndex = json.IndexOf("\"text\":");
-            if (textIndex == -1) return "Could not parse response.";
+            int i = json.IndexOf("\"text\":");
+            if (i == -1)
+                return "No response received.";
 
-            int start = json.IndexOf("\"", textIndex + 7) + 1;
-            int end   = json.IndexOf("\"", start);
-            if (end <= start) return "Empty response received.";
+            int s = json.IndexOf("\"", i+7) + 1;
+            int e = json.IndexOf("\"", s);
+            if (e <= s)
+                return "Empty response.";
 
-            string text = json.Substring(start, end - start);
-            text = text.Replace("\\n",  "\n")
-                       .Replace("\\\"", "\"")
-                       .Replace("\\\\", "\\");
-            return text;
+            return json.Substring(s, e - s)
+                .Replace("\\n",  "\n")
+                .Replace("\\\"", "\"")
+                .Replace("\\\\", "\\");
         }
-        catch (System.Exception e)
+        catch (Exception ex)
         {
-            Debug.LogError("Parse error: " + e.Message);
-            return "Sorry, I could not understand the response.";
+            Debug.LogError(ex.Message);
+            return "Could not read response.";
         }
     }
 
     // ═══════════════════════════════════════════
-    //  VOICE INPUT
+    //  CHAT DISPLAY
     // ═══════════════════════════════════════════
-    void StartVoiceInput()
+    void AddToChat(string message)
     {
-        if (!isRecording)
-        {
-            isRecording = true;
-            SetStatus(StatusMode.Listening);
-
-            TextMeshProUGUI btnText =
-                listenButton != null
-                ? listenButton.GetComponentInChildren<TextMeshProUGUI>()
-                : null;
-
-            if (btnText != null)
-            {
-                btnText.text  = "■ STOP";
-                btnText.color = HexColor("#FF4444");
-            }
-
-            if (audioSource != null)
-                audioSource.clip = Microphone.Start(null, false, 10, 44100);
-
-            StartCoroutine(AutoStopRecording());
-        }
-        else
-        {
-            StopVoiceInput();
-        }
+        chatHistory += message + "\n\n";
+        UpdateChatDisplay(chatHistory);
     }
 
-    IEnumerator AutoStopRecording()
+    void UpdateChatDisplay(string text)
     {
-        yield return new WaitForSeconds(8f);
-        if (isRecording) StopVoiceInput();
-    }
-
-    void StopVoiceInput()
-    {
-        isRecording = false;
-        Microphone.End(null);
-
-        TextMeshProUGUI btnText =
-            listenButton != null
-            ? listenButton.GetComponentInChildren<TextMeshProUGUI>()
-            : null;
-
-        if (btnText != null)
-        {
-            btnText.text  = "🎙 VOICE";
-            btnText.color = HexColor("#D8F0FF");
-        }
-
-        if (statusText != null)
-        {
-            statusText.text  = "💡 Use Win+H to dictate!";
-            statusText.color = HexColor("#FFD700");
-        }
+        if (chatHistoryText != null)
+            chatHistoryText.text = text;
     }
 
     // ═══════════════════════════════════════════
     //  TEXT TO SPEECH
     // ═══════════════════════════════════════════
-    void SpeakAnswer()
+    void SpeakLastAnswer()
     {
-        if (string.IsNullOrEmpty(lastAnswer)) return;
-        StartCoroutine(SpeakWithTTS(lastAnswer));
+        if (string.IsNullOrEmpty(lastAnswer))
+            return;
+        StartCoroutine(Speak(lastAnswer));
     }
 
-    IEnumerator SpeakWithTTS(string text)
+    IEnumerator Speak(string text)
     {
-        SetStatus(StatusMode.Speaking);
+        SetStatus("▶ Speaking...");
 
-        string ttsUrl =
-            "https://translate.google.com/translate_tts?ie=UTF-8&q=" +
-            UnityWebRequest.EscapeURL(text) + "&tl=en&client=tw-ob";
+        string url =
+            "https://translate.google.com/" +
+            "translate_tts?ie=UTF-8&q=" +
+            UnityWebRequest.EscapeURL(text) +
+            "&tl=en&client=tw-ob";
 
         using (UnityWebRequest req =
-               UnityWebRequestMultimedia.GetAudioClip(ttsUrl, AudioType.MPEG))
+            UnityWebRequestMultimedia
+            .GetAudioClip(url, AudioType.MPEG))
         {
             yield return req.SendWebRequest();
 
-            if (req.result == UnityWebRequest.Result.Success)
+            if (req.result ==
+                UnityWebRequest.Result.Success)
             {
                 if (audioSource != null)
                 {
-                    audioSource.clip = DownloadHandlerAudioClip.GetContent(req);
+                    audioSource.clip =
+                        DownloadHandlerAudioClip
+                        .GetContent(req);
                     audioSource.Play();
-                    yield return new WaitUntil(() => !audioSource.isPlaying);
-                }
-            }
-            else
-            {
-                Debug.LogWarning("TTS failed: " + req.error);
-                if (statusText != null)
-                {
-                    statusText.text  = "Audio failed. Read answer above.";
-                    statusText.color = HexColor("#FFD700");
+                    yield return new WaitUntil(
+                        () => !audioSource.isPlaying);
                 }
             }
         }
 
-        SetStatus(StatusMode.Ready);
+        SetStatus("● READY");
     }
 
     // ═══════════════════════════════════════════
-    //  APPLY DESIGN
+    //  CONVERT TO WAV
     // ═══════════════════════════════════════════
-    void ApplyDesign()
+    byte[] ConvertToWav(float[] samples,
+        int channels, int sampleRate)
     {
-        // Panel background
-        SetImg(aiPanel, HexColor("#0A1220"));
+        int byteCount = samples.Length * 2;
+        int totalSize = 44 + byteCount;
+        byte[] wav    = new byte[totalSize];
 
-        // Answer card
-        if (answerText != null)
+        Encoding.ASCII.GetBytes("RIFF")
+            .CopyTo(wav, 0);
+        BitConverter.GetBytes(totalSize - 8)
+            .CopyTo(wav, 4);
+        Encoding.ASCII.GetBytes("WAVE")
+            .CopyTo(wav, 8);
+        Encoding.ASCII.GetBytes("fmt ")
+            .CopyTo(wav, 12);
+        BitConverter.GetBytes(16)
+            .CopyTo(wav, 16);
+        BitConverter.GetBytes((short)1)
+            .CopyTo(wav, 20);
+        BitConverter.GetBytes((short)channels)
+            .CopyTo(wav, 22);
+        BitConverter.GetBytes(sampleRate)
+            .CopyTo(wav, 24);
+        BitConverter.GetBytes(
+            sampleRate * channels * 2)
+            .CopyTo(wav, 28);
+        BitConverter.GetBytes(
+            (short)(channels * 2))
+            .CopyTo(wav, 32);
+        BitConverter.GetBytes((short)16)
+            .CopyTo(wav, 34);
+        Encoding.ASCII.GetBytes("data")
+            .CopyTo(wav, 36);
+        BitConverter.GetBytes(byteCount)
+            .CopyTo(wav, 40);
+
+        int offset = 44;
+        foreach (float s in samples)
         {
-            var card = answerText.transform.parent?.gameObject;
-            if (card != null) SetImg(card, HexColor("#0D1A2E"));
-            answerText.color       = HexColor("#D8F0FF");
-            answerText.fontSize    = 13;
-            answerText.lineSpacing = 6f;
+            short val = (short)(
+                Mathf.Clamp(s, -1f, 1f)
+                * short.MaxValue);
+            BitConverter.GetBytes(val)
+                .CopyTo(wav, offset);
+            offset += 2;
         }
 
-        // Status text
-        if (statusText != null)
-        {
-            statusText.fontSize         = 11;
-            statusText.fontStyle        = FontStyles.Bold;
-            statusText.characterSpacing = 2f;
-        }
-
-        // Input field
-        if (questionInputField != null)
-        {
-            SetImg(questionInputField.gameObject, HexColor("#071018"));
-
-            var ph = questionInputField.placeholder as TextMeshProUGUI;
-            if (ph != null)
-            {
-                ph.text      = "Ask your doubt here...";
-                ph.color     = HexColor("#1A3A55");
-                ph.fontSize  = 12;
-                ph.fontStyle = FontStyles.Italic;
-            }
-
-            var tc = questionInputField.textComponent as TextMeshProUGUI;
-            if (tc != null)
-            {
-                tc.color    = HexColor("#D8F0FF");
-                tc.fontSize = 13;
-            }
-
-            questionInputField.caretColor     = HexColor("#00E5FF");
-            questionInputField.selectionColor =
-                new Color(0f, 0.9f, 1f, 0.25f);
-        }
-
-        // Style buttons
-        StyleBtn(askButton,         HexColor("#00E5FF"), HexColor("#060E18"), "ASK AI",   13);
-        StyleBtn(listenButton,      HexColor("#6C2FFF"), HexColor("#D8F0FF"), "🎙 VOICE", 12);
-        StyleBtn(speakAnswerButton, HexColor("#FF2FFF"), HexColor("#060E18"), "🔊 SPEAK", 12);
-        StyleBtn(closeButton,       HexColor("#1A0828"), HexColor("#FF2FFF"), "✕  CLOSE", 12);
-
-        // Style floating ask button
-        StyleBtn(floatingAskButton, HexColor("#00E5FF"), HexColor("#060E18"), "✦  Ask AI", 13);
+        return wav;
     }
 
     // ═══════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════
-    void SetImg(GameObject go, Color color)
+    void SetStatus(string msg)
     {
-        if (go == null) return;
-        Image img = go.GetComponent<Image>();
-        if (img == null) return;
-        img.sprite = null;
-        img.color  = color;
-        img.type   = Image.Type.Simple;
+        if (statusText != null)
+            statusText.text = msg;
     }
 
-    void StyleBtn(Button btn, Color bg, Color textCol, string label, float fontSize)
+    void SetBtnText(Button btn, string text)
     {
         if (btn == null) return;
-
-        Image img = btn.GetComponent<Image>();
-        if (img != null)
-        {
-            img.sprite = null;
-            img.color  = bg;
-            img.type   = Image.Type.Simple;
-        }
-
-        TextMeshProUGUI tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
-        if (tmp != null)
-        {
-            tmp.text             = label;
-            tmp.color            = textCol;
-            tmp.fontSize         = fontSize;
-            tmp.fontStyle        = FontStyles.Bold;
-            tmp.alignment        = TextAlignmentOptions.Center;
-            tmp.characterSpacing = 1.5f;
-        }
-
-        ColorBlock cb        = btn.colors;
-        cb.normalColor       = bg;
-        cb.highlightedColor  = new Color(bg.r + 0.1f, bg.g + 0.1f, bg.b + 0.1f, 1f);
-        cb.pressedColor      = new Color(bg.r - 0.1f, bg.g - 0.1f, bg.b - 0.1f, 1f);
-        cb.fadeDuration      = 0.08f;
-        btn.colors           = cb;
+        var tmp = btn
+            .GetComponentInChildren
+            <TextMeshProUGUI>();
+        if (tmp != null) tmp.text = text;
     }
 
     static string EscapeJson(string s)
     {
-        return s.Replace("\\", "\\\\")
-                .Replace("\"", "\\\"")
-                .Replace("\n", "\\n")
-                .Replace("\r", "\\r")
-                .Replace("\t", "\\t");
-    }
-
-    static Color HexColor(string hex)
-    {
-        ColorUtility.TryParseHtmlString(hex, out Color c);
-        return c;
+        return s
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\r")
+            .Replace("\t", "\\t");
     }
 }
