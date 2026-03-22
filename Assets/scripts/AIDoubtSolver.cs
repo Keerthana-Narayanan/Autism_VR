@@ -1,308 +1,517 @@
+
+
+
 // using UnityEngine;
 // using UnityEngine.UI;
 // using TMPro;
 // using System.Collections;
 // using System.Text;
 // using UnityEngine.Networking;
+// using System;
 
 // public class AIDoubtSolver : MonoBehaviour
 // {
 //     [Header("Gemini API")]
-//     public string apiKey ="AIzaSyBz7n37OcIJO8IbTcLy8mF2fnfexaMLu3Q";
+//     public string apiKey = "AIzaSyCJzX40PpsOlLt3MwnOEbSJ5adepTolhYk";
 //     private string apiUrl =
-// "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-//     [Header("UI Elements")]
-//     public GameObject aiPanel;
-//     public TMP_InputField questionInputField;
-//     public TextMeshProUGUI answerText;
+//     "https://generativelanguage.googleapis.com/v1beta/models/" +
+//     "gemini-2.5-flash-lite:generateContent";
+
+//     [Header("Screens")]
+//     public GameObject tutorialScreen;
+//     public GameObject chatbotScreen;
+
+//     [Header("Main Screen")]
+//     public Button askAIButton;
+
+//     [Header("Chatbot UI")]
+//     public TextMeshProUGUI chatHistoryText;
+//     public TMP_InputField  questionInputField;
 //     public TextMeshProUGUI statusText;
-//     public Button askButton;
-//     public Button closeButton;
-//     public Button listenButton;
-//     public Button speakAnswerButton;
+//     public Button          sendButton;
+//     public Button          voiceButton;
+//     public Button          quitButton;
+//     public Button          speakButton;
 
 //     [Header("Audio")]
 //     public AudioSource audioSource;
 
-//     [Header("Teaching Video Reference")]
+//     [Header("Teaching Manager")]
 //     public TeachingAudioManager teachingManager;
 
-//     private string lastAnswer = "";
-//     private bool isRecording = false;
+//     private string    lastAnswer       = "";
+//     private bool      isRecording      = false;
+//     private AudioClip recordedClip     = null;
+//     private string    chatHistory      = "";
+//     private bool      isRequestRunning = false;
+//     private float     lastRequestTime  = -999f;  // allow first request immediately
+//     private float     requestCooldown  = 30f;    // backs off on 429
 
+//     private Coroutine countdownCoroutine = null;
+
+//     const int SAMPLE_RATE     = 16000;
+//     const int MAX_RECORD_SECS = 10;
+
+//     // ===================================================
+//     //  START
+//     // ===================================================
 //     void Start()
 //     {
-//         if (aiPanel != null)
-//             aiPanel.SetActive(false);
+//         ShowTutorial();
 
-//         if (askButton != null)
-//             askButton.onClick.AddListener(
-//                 OnAskButtonClicked);
-
-//         if (closeButton != null)
-//             closeButton.onClick.AddListener(ClosePanel);
-
-//         if (listenButton != null)
-//             listenButton.onClick.AddListener(
-//                 StartVoiceInput);
-
-//         if (speakAnswerButton != null)
-//             speakAnswerButton.onClick.AddListener(
-//                 SpeakAnswer);
+//         if (askAIButton        != null) askAIButton.onClick.AddListener(OpenChatbot);
+//         if (sendButton         != null) sendButton.onClick.AddListener(OnSendClicked);
+//         if (voiceButton        != null) voiceButton.onClick.AddListener(ToggleVoice);
+//         if (quitButton         != null) quitButton.onClick.AddListener(CloseChatbot);
+//         if (speakButton        != null) speakButton.onClick.AddListener(SpeakLastAnswer);
+//         if (questionInputField != null)
+//             questionInputField.onSubmit.AddListener((_) => OnSendClicked());
 //     }
 
-//     public void OpenPanel()
+//     // ===================================================
+//     //  SHOW TUTORIAL
+//     // ===================================================
+//     void ShowTutorial()
 //     {
-//         // Show AI panel
-//         if (aiPanel != null)
-//             aiPanel.SetActive(true);
-
-//         // PAUSE the teaching video
-//         if (teachingManager != null)
-//             teachingManager.PauseLesson();
-
-//         if (answerText != null)
-//             answerText.text =
-//                 "Hi! I am your AI teacher.\n" +
-//                 "Ask me anything about " +
-//                 "Logistic Regression!";
-
-//         if (statusText != null)
-//             statusText.text =
-//                 "Lesson paused. Ask your doubt!";
+//         if (tutorialScreen != null) tutorialScreen.SetActive(true);
+//         if (chatbotScreen  != null) chatbotScreen.SetActive(false);
 //     }
 
-//     void ClosePanel()
+//     // ===================================================
+//     //  OPEN CHATBOT
+//     // ===================================================
+//     public void OpenChatbot()
 //     {
-//         // Hide AI panel
-//         if (aiPanel != null)
-//             aiPanel.SetActive(false);
+//         if (tutorialScreen != null) tutorialScreen.SetActive(false);
+//         if (chatbotScreen  != null) chatbotScreen.SetActive(true);
 
-//         // RESUME the teaching video
-//         if (teachingManager != null)
-//             teachingManager.ResumeLesson();
+//         if (teachingManager != null) teachingManager.PauseLesson();
 
-//         // Stop AI audio
-//         if (audioSource != null &&
-//             audioSource.isPlaying)
-//             audioSource.Stop();
-//     }
+//         chatHistory = "";
+//         UpdateChatDisplay(
+//             "<color=#00E5FF><b>AI Teacher</b></color>\n\n" +
+//             "Hi! I am your AI teacher.\n\n" +
+//             "You can:\n" +
+//             "* Type your question and press SEND\n" +
+//             "* Press VOICE to speak your question\n\n" +
+//             "Ask me anything about Logistic Regression!");
 
-//     public void OnAskButtonClicked()
-//     {
-//         if (questionInputField == null) return;
-//         string question =
-//             questionInputField.text.Trim();
+//         SetStatus("[ READY ]");
 
-//         if (question == "")
+//         if (questionInputField != null)
 //         {
-//             if (statusText != null)
-//                 statusText.text =
-//                     "Please type your question first!";
+//             questionInputField.text = "";
+//             questionInputField.Select();
+//             questionInputField.ActivateInputField();
+//         }
+//     }
+
+//     public void OpenPanel()  => OpenChatbot();
+//     public void OpenDrawer() => OpenChatbot();
+
+//     // ===================================================
+//     //  CLOSE CHATBOT
+//     // ===================================================
+//     public void CloseChatbot()
+//     {
+//         if (isRecording)
+//         {
+//             Microphone.End(null);
+//             isRecording = false;
+//         }
+
+//         if (audioSource != null && audioSource.isPlaying)
+//             audioSource.Stop();
+
+//         if (countdownCoroutine != null)
+//         {
+//             StopCoroutine(countdownCoroutine);
+//             countdownCoroutine = null;
+//         }
+
+//         if (chatbotScreen  != null) chatbotScreen.SetActive(false);
+//         if (tutorialScreen != null) tutorialScreen.SetActive(true);
+
+//         if (teachingManager != null) teachingManager.ResumeLesson();
+//     }
+
+//     // ===================================================
+//     //  SEND TEXT
+//     // ===================================================
+//     void OnSendClicked()
+//     {
+//         float elapsed   = Time.time - lastRequestTime;
+//         float remaining = requestCooldown - elapsed;
+
+//         if (remaining > 0f)
+//         {
+//             if (countdownCoroutine == null)
+//                 countdownCoroutine = StartCoroutine(ShowCountdown(remaining));
 //             return;
 //         }
 
-//         StartCoroutine(AskGemini(question));
+//         if (isRequestRunning)
+//         {
+//             SetStatus("Please wait for the AI response...");
+//             return;
+//         }
+
+//         if (questionInputField == null) return;
+
+//         string question = questionInputField.text.Trim();
+//         if (question == "")
+//         {
+//             SetStatus("Please type a question!");
+//             return;
+//         }
+
+//         AddToChat("<color=#00E5FF>You:</color> " + question);
+//         questionInputField.text = "";
+
+//         isRequestRunning = true;
+//         lastRequestTime  = Time.time;
+//         SetSendInteractable(false);
+
+//         StartCoroutine(AskGeminiText(question));
 //     }
 
-//     IEnumerator AskGemini(string question)
-// {
-//     if (statusText != null)
-//         statusText.text = "Thinking...";
-
-//     if (answerText != null)
-//         answerText.text = "Please wait...";
-
-//     if (askButton != null)
-//         askButton.interactable = false;
-
-//     string fullPrompt =
-//         "You are a helpful AI teacher explaining Logistic Regression to a student. " +
-//         "Keep your answer simple and under 80 words. Student question: " + question;
-
-//     // escape quotes
-//     string safePrompt = fullPrompt.Replace("\"", "\\\"");
-
-//     string jsonBody =
-//         "{\"contents\":[{\"parts\":[{\"text\":\"" + safePrompt + "\"}]}]}";
-
-//     string fullUrl = apiUrl + "?key=" + apiKey;
-
-//     UnityWebRequest request = new UnityWebRequest(fullUrl, "POST");
-
-//     byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
-
-//     request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-//     request.downloadHandler = new DownloadHandlerBuffer();
-
-//     request.SetRequestHeader("Content-Type", "application/json");
-//     request.SetRequestHeader("User-Agent", "Unity");
-
-//     yield return request.SendWebRequest();
-
-//     if (askButton != null)
-//         askButton.interactable = true;
-
-//     if (request.result == UnityWebRequest.Result.Success)
+//     // ===================================================
+//     //  COUNTDOWN  — plain ASCII only, no emoji
+//     // ===================================================
+//     IEnumerator ShowCountdown(float seconds)
 //     {
-//         string response = request.downloadHandler.text;
+//         SetSendInteractable(false);
 
-//         Debug.Log("Gemini Response: " + response);
+//         float end = Time.time + seconds;
+//         while (Time.time < end)
+//         {
+//             int secs = Mathf.CeilToInt(end - Time.time);
+//             SetStatus("Wait " + secs + "s before next question...");
+//             yield return new WaitForSeconds(0.5f);
+//         }
 
-//         string answer = ParseGeminiResponse(response);
-
-//         lastAnswer = answer;
-
-//         if (answerText != null)
-//             answerText.text = answer;
-
-//         if (statusText != null)
-//             statusText.text = "Answer ready!";
-
-//         StartCoroutine(SpeakWithTTS(answer));
+//         SetStatus("[ READY ]");
+//         SetSendInteractable(true);
+//         countdownCoroutine = null;
 //     }
-//     else
+
+//     // ===================================================
+//     //  VOICE TOGGLE
+//     // ===================================================
+//     void ToggleVoice()
 //     {
-//         Debug.Log("Gemini Error: " + request.error);
-//         Debug.Log("Server Response: " + request.downloadHandler.text);
-
-//         if (answerText != null)
-//             answerText.text =
-//                 "AI connection failed.";
-
-//         if (statusText != null)
-//             statusText.text =
-//                 "Error: " + request.error;
+//         if (!isRecording) StartRecording();
+//         else              StopRecordingAndAsk();
 //     }
-// }
 
-//     string ParseGeminiResponse(string json)
+//     void StartRecording()
+//     {
+//         if (Microphone.devices.Length == 0)
+//         {
+//             SetStatus("No microphone found!");
+//             return;
+//         }
+
+//         isRecording  = true;
+//         recordedClip = Microphone.Start(null, false, MAX_RECORD_SECS, SAMPLE_RATE);
+
+//         SetStatus("Listening... click STOP when done");
+//         SetBtnText(voiceButton, "STOP");
+//         AddToChat("<color=#6C2FFF>Recording...</color>");
+//         StartCoroutine(AutoStop());
+//     }
+
+//     IEnumerator AutoStop()
+//     {
+//         yield return new WaitForSeconds(MAX_RECORD_SECS);
+//         if (isRecording) StopRecordingAndAsk();
+//     }
+
+//     void StopRecordingAndAsk()
+//     {
+//         if (!isRecording) return;
+//         isRecording = false;
+
+//         int lastSample = Microphone.GetPosition(null);
+//         Microphone.End(null);
+
+//         SetBtnText(voiceButton, "VOICE");
+//         SetStatus("Processing your voice...");
+
+//         if (recordedClip == null || lastSample <= 0)
+//         {
+//             SetStatus("No audio! Try again.");
+//             return;
+//         }
+
+//         float[] samples = new float[lastSample * recordedClip.channels];
+//         recordedClip.GetData(samples, 0);
+
+//         byte[] wavBytes = ConvertToWav(samples, recordedClip.channels, SAMPLE_RATE);
+
+//         AddToChat("<color=#6C2FFF>You (voice):</color> [Sending to AI...]");
+//         StartCoroutine(AskGeminiAudio(wavBytes));
+//     }
+
+//     // ===================================================
+//     //  GEMINI TEXT
+//     // ===================================================
+//     IEnumerator AskGeminiText(string question)
+//     {
+//         SetStatus("Thinking...");
+
+//         string prompt =
+//             "You are a helpful AI teacher explaining Logistic Regression. " +
+//             "The student is using an interactive Unity tutorial with live " +
+//             "sigmoid curve and weight/bias sliders. " +
+//             "Answer clearly and friendly in max 80 words. " +
+//             "No markdown symbols. " +
+//             "Student question: " + question;
+
+//         string body =
+//             "{\"contents\":[{\"parts\":" +
+//             "[{\"text\":\"" + EscapeJson(prompt) + "\"}]}]}";
+
+//         yield return StartCoroutine(
+//             SendToGemini(Encoding.UTF8.GetBytes(body)));
+//     }
+
+//     // ===================================================
+//     //  GEMINI AUDIO
+//     // ===================================================
+//     IEnumerator AskGeminiAudio(byte[] wav)
+//     {
+//         SetStatus("Sending voice to AI...");
+
+//         string base64 = Convert.ToBase64String(wav);
+
+//         string prompt =
+//             "You are a helpful AI teacher explaining Logistic Regression. " +
+//             "The student asked a question via voice. " +
+//             "Listen and answer clearly in max 80 words. No markdown symbols.";
+
+//         string body =
+//             "{\"contents\":[{\"parts\":[" +
+//             "{\"inline_data\":{" +
+//             "\"mime_type\":\"audio/wav\"," +
+//             "\"data\":\"" + base64 + "\"}}," +
+//             "{\"text\":\"" + EscapeJson(prompt) + "\"}]}]}";
+
+//         yield return StartCoroutine(
+//             SendToGemini(Encoding.UTF8.GetBytes(body)));
+//     }
+
+//     // ===================================================
+//     //  SEND TO GEMINI  (exponential back-off on 429)
+//     // ===================================================
+//     IEnumerator SendToGemini(byte[] body)
+//     {
+//         string url = apiUrl + "?key=" + apiKey;
+
+//         using (UnityWebRequest req = new UnityWebRequest(url, "POST"))
+//         {
+//             req.uploadHandler   = new UploadHandlerRaw(body);
+//             req.downloadHandler = new DownloadHandlerBuffer();
+//             req.SetRequestHeader("Content-Type", "application/json");
+
+//             yield return req.SendWebRequest();
+
+//             // ---------- 429 Rate Limit ----------
+//             if (req.responseCode == 429)
+//             {
+//                 requestCooldown = Mathf.Min(requestCooldown * 2f, 120f);
+//                 requestCooldown = 30f;
+
+//                 lastRequestTime = Time.time;
+
+//                 int waitSecs = Mathf.RoundToInt(requestCooldown);
+
+//                 AddToChat(
+//                     "<color=#FF4444>AI: Too many requests! " +
+//                     "Please wait " + waitSecs + " seconds and try again.</color>");
+
+//                 isRequestRunning = false;
+
+//                 if (countdownCoroutine != null) StopCoroutine(countdownCoroutine);
+//                 countdownCoroutine = StartCoroutine(ShowCountdown(requestCooldown));
+
+//                 yield break;
+//             }
+
+//             // ---------- Success ----------
+//             if (req.result == UnityWebRequest.Result.Success)
+//             {
+//                 string answer = ParseResponse(req.downloadHandler.text);
+//                 lastAnswer = answer;
+
+//                 AddToChat("<color=#00FF88>AI Teacher:</color> " + answer);
+
+//                 requestCooldown  = 30f;   // reset back-off after success
+//                 isRequestRunning = false;
+//                 SetStatus("[ READY ]");
+//                 SetSendInteractable(true);
+
+//                 StartCoroutine(Speak(answer));
+//             }
+//             // ---------- Network error ----------
+//             else
+//             {
+//                 Debug.LogError(req.error);
+//                 Debug.LogError(req.downloadHandler.text);
+
+//                 AddToChat(
+//                     "<color=#FF4444>AI: Connection failed. " +
+//                     "Check your internet and try again!</color>");
+
+//                 SetStatus("Error! Try again.");
+//                 isRequestRunning = false;
+//                 SetSendInteractable(true);
+//             }
+//         }
+//     }
+
+//     // ===================================================
+//     //  PARSE RESPONSE
+//     // ===================================================
+//     string ParseResponse(string json)
 //     {
 //         try
 //         {
-//             int textIndex =
-//                 json.IndexOf("\"text\":");
-//             if (textIndex == -1)
-//                 return "Could not parse response.";
+//             int i = json.IndexOf("\"text\":");
+//             if (i == -1) return "No response received.";
 
-//             int start =
-//                 json.IndexOf("\"", textIndex + 7) + 1;
-//             int end = json.IndexOf("\"", start);
+//             int s = json.IndexOf("\"", i + 7) + 1;
+//             int e = json.IndexOf("\"", s);
+//             if (e <= s) return "Empty response.";
 
-//             string text =
-//                 json.Substring(start, end - start);
-//             text = text.Replace("\\n", "\n");
-//             text = text.Replace("\\\"", "\"");
-//             text = text.Replace("\\\\", "\\");
-
-//             return text;
+//             return json.Substring(s, e - s)
+//                 .Replace("\\n",  "\n")
+//                 .Replace("\\\"", "\"")
+//                 .Replace("\\\\", "\\");
 //         }
-//         catch
+//         catch (Exception ex)
 //         {
-//             return "Sorry I could not understand " +
-//                    "the response.";
+//             Debug.LogError(ex.Message);
+//             return "Could not read response.";
 //         }
 //     }
 
-//     void StartVoiceInput()
+//     // ===================================================
+//     //  CHAT DISPLAY
+//     // ===================================================
+//     void AddToChat(string message)
 //     {
-//         if (!isRecording)
-//         {
-//             isRecording = true;
-
-//             if (statusText != null)
-//                 statusText.text =
-//                     "Listening... Speak now!";
-
-//             TextMeshProUGUI btnText =
-//                 listenButton
-//                 .GetComponentInChildren
-//                 <TextMeshProUGUI>();
-//             if (btnText != null)
-//                 btnText.text = "Stop";
-
-//             audioSource.clip =
-//                 Microphone.Start(
-//                     null, false, 10, 44100);
-
-//             StartCoroutine(AutoStopRecording());
-//         }
-//         else
-//         {
-//             StopVoiceInput();
-//         }
+//         chatHistory += message + "\n\n";
+//         UpdateChatDisplay(chatHistory);
 //     }
 
-//     IEnumerator AutoStopRecording()
+//     void UpdateChatDisplay(string text)
 //     {
-//         yield return new WaitForSeconds(8f);
-//         if (isRecording)
-//             StopVoiceInput();
+//         if (chatHistoryText != null)
+//             chatHistoryText.text = text;
 //     }
 
-//     void StopVoiceInput()
+//     // ===================================================
+//     //  TEXT TO SPEECH
+//     // ===================================================
+//     void SpeakLastAnswer()
 //     {
-//         isRecording = false;
-//         Microphone.End(null);
-
-//         TextMeshProUGUI btnText =
-//             listenButton
-//             .GetComponentInChildren
-//             <TextMeshProUGUI>();
-//         if (btnText != null)
-//             btnText.text = "Ask by Voice";
-
-//         if (statusText != null)
-//             statusText.text =
-//                 "Press Windows + H to type by voice!";
+//         if (string.IsNullOrEmpty(lastAnswer)) return;
+//         StartCoroutine(Speak(lastAnswer));
 //     }
 
-//     void SpeakAnswer()
+//     IEnumerator Speak(string text)
 //     {
-//         if (lastAnswer == "") return;
-//         StartCoroutine(SpeakWithTTS(lastAnswer));
-//     }
+//         SetStatus("Speaking...");
 
-//     IEnumerator SpeakWithTTS(string text)
-//     {
-//         if (statusText != null)
-//             statusText.text = "Speaking answer...";
-
-//         string encodedText =
-//             UnityWebRequest.EscapeURL(text);
-
-//         string ttsUrl =
-//             "https://translate.google.com/translate_tts" +
-//             "?ie=UTF-8&q=" + encodedText +
+//         string url =
+//             "https://translate.google.com/translate_tts?ie=UTF-8&q=" +
+//             UnityWebRequest.EscapeURL(text) +
 //             "&tl=en&client=tw-ob";
 
-//         UnityWebRequest request =
-//             UnityWebRequestMultimedia.GetAudioClip(
-//                 ttsUrl, AudioType.MPEG);
-
-//         yield return request.SendWebRequest();
-
-//         if (request.result ==
-//             UnityWebRequest.Result.Success)
+//         using (UnityWebRequest req =
+//             UnityWebRequestMultimedia.GetAudioClip(url, AudioType.MPEG))
 //         {
-//             AudioClip clip =
-//                 DownloadHandlerAudioClip
-//                 .GetContent(request);
-//             audioSource.clip = clip;
-//             audioSource.Play();
+//             yield return req.SendWebRequest();
 
-//             if (statusText != null)
-//                 statusText.text =
-//                     "Playing answer...";
+//             if (req.result == UnityWebRequest.Result.Success)
+//             {
+//                 if (audioSource != null)
+//                 {
+//                     audioSource.clip = DownloadHandlerAudioClip.GetContent(req);
+//                     audioSource.Play();
+//                     yield return new WaitUntil(() => !audioSource.isPlaying);
+//                 }
+//             }
 //         }
-//         else
+
+//         SetStatus("[ READY ]");
+//     }
+
+//     // ===================================================
+//     //  CONVERT TO WAV
+//     // ===================================================
+//     byte[] ConvertToWav(float[] samples, int channels, int sampleRate)
+//     {
+//         int byteCount = samples.Length * 2;
+//         int totalSize = 44 + byteCount;
+//         byte[] wav    = new byte[totalSize];
+
+//         Encoding.ASCII.GetBytes("RIFF").CopyTo(wav, 0);
+//         BitConverter.GetBytes(totalSize - 8).CopyTo(wav, 4);
+//         Encoding.ASCII.GetBytes("WAVE").CopyTo(wav, 8);
+//         Encoding.ASCII.GetBytes("fmt ").CopyTo(wav, 12);
+//         BitConverter.GetBytes(16).CopyTo(wav, 16);
+//         BitConverter.GetBytes((short)1).CopyTo(wav, 20);
+//         BitConverter.GetBytes((short)channels).CopyTo(wav, 22);
+//         BitConverter.GetBytes(sampleRate).CopyTo(wav, 24);
+//         BitConverter.GetBytes(sampleRate * channels * 2).CopyTo(wav, 28);
+//         BitConverter.GetBytes((short)(channels * 2)).CopyTo(wav, 32);
+//         BitConverter.GetBytes((short)16).CopyTo(wav, 34);
+//         Encoding.ASCII.GetBytes("data").CopyTo(wav, 36);
+//         BitConverter.GetBytes(byteCount).CopyTo(wav, 40);
+
+//         int offset = 44;
+//         foreach (float s in samples)
 //         {
-//             if (statusText != null)
-//                 statusText.text =
-//                     "Audio failed. Read answer above.";
+//             short val = (short)(Mathf.Clamp(s, -1f, 1f) * short.MaxValue);
+//             BitConverter.GetBytes(val).CopyTo(wav, offset);
+//             offset += 2;
 //         }
-//     }}
 
+//         return wav;
+//     }
+
+//     // ===================================================
+//     //  HELPERS
+//     // ===================================================
+//     void SetStatus(string msg)
+//     {
+//         if (statusText != null) statusText.text = msg;
+//     }
+
+//     void SetSendInteractable(bool value)
+//     {
+//         if (sendButton != null) sendButton.interactable = value;
+//     }
+
+//     void SetBtnText(Button btn, string text)
+//     {
+//         if (btn == null) return;
+//         var tmp = btn.GetComponentInChildren<TextMeshProUGUI>();
+//         if (tmp != null) tmp.text = text;
+//     }
+
+//     static string EscapeJson(string s)
+//     {
+//         return s
+//             .Replace("\\", "\\\\")
+//             .Replace("\"", "\\\"")
+//             .Replace("\n", "\\n")
+//             .Replace("\r", "\\r")
+//             .Replace("\t", "\\t");
+//     }
+// }
 
 
 using UnityEngine;
@@ -313,120 +522,145 @@ using System.Text;
 using UnityEngine.Networking;
 using System;
 
+// ══════════════════════════════════════════════════════════════════
+//  AIDoubtSolver  —  Modern Bubble Chat UI
+//
+//  HIERARCHY REQUIRED:
+//
+//  Canvas
+//  ├── TutorialScreen          (your existing tutorial)
+//  └── ChatbotScreen
+//      ├── Background          (Image, color #0A0A0F)
+//      ├── HeaderBar
+//      │   ├── AvatarCircle    (Image, circle, purple gradient)
+//      │   ├── HeaderTitle     (TMP "AI Teacher")
+//      │   └── CloseBtn        (Button "✕")
+//      ├── ScrollView          (Scroll Rect, vertical only)
+//      │   └── Viewport
+//      │       └── ContentArea (Vertical Layout Group + Content Size Fitter)
+//      ├── TypingIndicator     (TMP "AI is thinking...")  ← hidden by default
+//      └── InputBar
+//          ├── InputBackground (Image, rounded, #1A1A2E)
+//          ├── InputField      (TMP_InputField)
+//          ├── VoiceBtn        (Button — mic icon)
+//          └── SendBtn         (Button — send icon)
+//
+//  MESSAGE BUBBLE PREFABS (create two prefabs):
+//
+//  UserBubble  (HorizontalLayoutGroup, right-aligned)
+//  └── BubbleBackground  (Image, rounded, #7C3AED)
+//      └── MessageText   (TMP)
+//
+//  BotBubble   (HorizontalLayoutGroup, left-aligned)
+//  ├── AvatarDot   (Image, small circle, #7C3AED)
+//  └── BubbleBackground  (Image, rounded, #1A1A2E)
+//      └── MessageText   (TMP)
+//
+// ══════════════════════════════════════════════════════════════════
+
 public class AIDoubtSolver : MonoBehaviour
 {
+    // ── API ──────────────────────────────────────────────────────
     [Header("Gemini API")]
-    public string apiKey = "";
+    public string apiKey = "AIzaSyCJzX40PpsOlLt3MwnOEbSJ5adepTolhYk";
     private string apiUrl =
         "https://generativelanguage.googleapis.com/v1beta/models/" +
-        "gemini-2.0-flash:generateContent";
+        "gemini-2.5-flash-lite:generateContent";
 
+    // ── SCREENS ──────────────────────────────────────────────────
     [Header("Screens")]
     public GameObject tutorialScreen;
     public GameObject chatbotScreen;
 
-    [Header("Main Screen")]
-    public Button askAIButton;
+    // ── HEADER ───────────────────────────────────────────────────
+    [Header("Header")]
+    public Button closeButton;          // ✕ in header bar
 
-    [Header("Chatbot UI")]
-    public TextMeshProUGUI chatHistoryText;
-    public TMP_InputField  questionInputField;
-    public TextMeshProUGUI statusText;
-    public Button          sendButton;
-    public Button          voiceButton;
-    public Button          quitButton;
+    // ── CHAT AREA ────────────────────────────────────────────────
+    [Header("Chat Area")]
+    public ScrollRect  chatScrollRect;  // the ScrollRect component
+    public RectTransform contentArea;   // ContentArea inside Viewport
+    public GameObject  userBubblePrefab;
+    public GameObject  botBubblePrefab;
+    public GameObject  typingIndicator; // "AI is thinking..." row
+
+    // ── INPUT BAR ────────────────────────────────────────────────
+    [Header("Input Bar")]
+    public TMP_InputField questionInputField;
+    public Button         sendButton;
+    public Button         voiceButton;
+
+    // ── LEGACY / COMPAT ──────────────────────────────────────────
+    [Header("Legacy (optional — leave empty if not used)")]
     public Button          speakButton;
+    public TextMeshProUGUI statusText;   // small status label (optional)
 
+    // ── AUDIO ────────────────────────────────────────────────────
     [Header("Audio")]
     public AudioSource audioSource;
 
+    // ── TEACHING MANAGER ─────────────────────────────────────────
     [Header("Teaching Manager")]
     public TeachingAudioManager teachingManager;
 
-    private string  lastAnswer  = "";
-    private bool    isRecording = false;
-    private AudioClip recordedClip = null;
-    private string  chatHistory = "";
+    // ── PRIVATE STATE ─────────────────────────────────────────────
+    private string    lastAnswer       = "";
+    private bool      isRecording      = false;
+    private AudioClip recordedClip     = null;
+    private bool      isRequestRunning = false;
+    private float     lastRequestTime  = -999f;
+    private float     requestCooldown  = 30f;
+    private Coroutine countdownCoroutine = null;
 
     const int SAMPLE_RATE     = 16000;
     const int MAX_RECORD_SECS = 10;
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  START
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     void Start()
     {
-        // Show tutorial, hide chatbot at start
         ShowTutorial();
 
-        // Wire buttons
-        if (askAIButton != null)
-            askAIButton.onClick.AddListener(
-                OpenChatbot);
-
-        if (sendButton != null)
-            sendButton.onClick.AddListener(
-                OnSendClicked);
-
-        if (voiceButton != null)
-            voiceButton.onClick.AddListener(
-                ToggleVoice);
-
-        if (quitButton != null)
-            quitButton.onClick.AddListener(
-                CloseChatbot);
-
-        if (speakButton != null)
-            speakButton.onClick.AddListener(
-                SpeakLastAnswer);
+        if (closeButton        != null) closeButton.onClick.AddListener(CloseChatbot);
+        if (sendButton         != null) sendButton.onClick.AddListener(OnSendClicked);
+        if (voiceButton        != null) voiceButton.onClick.AddListener(ToggleVoice);
+        if (speakButton        != null) speakButton.onClick.AddListener(SpeakLastAnswer);
+        if (typingIndicator    != null) typingIndicator.SetActive(false);
 
         if (questionInputField != null)
-            questionInputField.onSubmit
-                .AddListener((_) =>
-                    OnSendClicked());
+            questionInputField.onSubmit.AddListener((_) => OnSendClicked());
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  SHOW TUTORIAL
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     void ShowTutorial()
     {
-        if (tutorialScreen != null)
-            tutorialScreen.SetActive(true);
-        if (chatbotScreen != null)
-            chatbotScreen.SetActive(false);
+        if (tutorialScreen != null) tutorialScreen.SetActive(true);
+        if (chatbotScreen  != null) chatbotScreen.SetActive(false);
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  OPEN CHATBOT
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     public void OpenChatbot()
     {
-        // Hide tutorial
-        if (tutorialScreen != null)
-            tutorialScreen.SetActive(false);
+        if (tutorialScreen != null) tutorialScreen.SetActive(false);
+        if (chatbotScreen  != null) chatbotScreen.SetActive(true);
 
-        // Show chatbot
-        if (chatbotScreen != null)
-            chatbotScreen.SetActive(true);
+        if (teachingManager != null) teachingManager.PauseLesson();
 
-        // Pause lesson
-        if (teachingManager != null)
-            teachingManager.PauseLesson();
+        // Clear old bubbles
+        ClearChat();
 
-        // Reset chat
-        chatHistory = "";
-        UpdateChatDisplay(
-            "<color=#00E5FF><b>AI Teacher</b>" +
-            "</color>\n\n" +
-            "Hi! I am your AI teacher.\n\n" +
-            "You can:\n" +
-            "● Type your question and press SEND\n" +
-            "● Press VOICE to speak your question\n\n" +
-            "Ask me anything about " +
-            "Logistic Regression!");
+        // Welcome bubble from bot
+        StartCoroutine(SpawnBotBubbleAnimated(
+            "Hi! I am your AI Teacher.\n\nAsk me anything about Logistic Regression — " +
+            "type your question or press the mic button to speak.", delay: 0.3f));
 
-        SetStatus("● READY");
+        SetStatus("READY");
+        SetSendInteractable(true);
 
         if (questionInputField != null)
         {
@@ -436,105 +670,110 @@ public class AIDoubtSolver : MonoBehaviour
         }
     }
 
-    public void OpenPanel() => OpenChatbot();
+    public void OpenPanel()  => OpenChatbot();
     public void OpenDrawer() => OpenChatbot();
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  CLOSE CHATBOT
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     public void CloseChatbot()
     {
-        // Stop recording if active
-        if (isRecording)
+        if (isRecording) { Microphone.End(null); isRecording = false; }
+
+        if (audioSource != null && audioSource.isPlaying) audioSource.Stop();
+
+        if (countdownCoroutine != null)
         {
-            Microphone.End(null);
-            isRecording = false;
+            StopCoroutine(countdownCoroutine);
+            countdownCoroutine = null;
         }
 
-        // Stop audio
-        if (audioSource != null &&
-            audioSource.isPlaying)
-            audioSource.Stop();
+        if (typingIndicator != null) typingIndicator.SetActive(false);
 
-        // Hide chatbot
-        if (chatbotScreen != null)
-            chatbotScreen.SetActive(false);
+        if (chatbotScreen  != null) chatbotScreen.SetActive(false);
+        if (tutorialScreen != null) tutorialScreen.SetActive(true);
 
-        // Show tutorial
-        if (tutorialScreen != null)
-            tutorialScreen.SetActive(true);
-
-        // Resume lesson
-        if (teachingManager != null)
-            teachingManager.ResumeLesson();
+        if (teachingManager != null) teachingManager.ResumeLesson();
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  SEND TEXT
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     void OnSendClicked()
     {
-        if (questionInputField == null) return;
+        float elapsed   = Time.time - lastRequestTime;
+        float remaining = requestCooldown - elapsed;
 
-        string question =
-            questionInputField.text.Trim();
-
-        if (question == "")
+        if (remaining > 0f)
         {
-            SetStatus("Please type a question!");
+            if (countdownCoroutine == null)
+                countdownCoroutine = StartCoroutine(ShowCountdown(remaining));
             return;
         }
 
-        // Add student question to chat
-        AddToChat(
-            "<color=#00E5FF>You:</color> " +
-            question);
+        if (isRequestRunning) return;
+        if (questionInputField == null) return;
 
+        string question = questionInputField.text.Trim();
+        if (question == "") return;
+
+        SpawnUserBubble(question);
         questionInputField.text = "";
-        StartCoroutine(
-            AskGeminiText(question));
+
+        isRequestRunning = true;
+        lastRequestTime  = Time.time;
+        SetSendInteractable(false);
+        ShowTyping(true);
+
+        StartCoroutine(AskGeminiText(question));
     }
 
-    // ═══════════════════════════════════════════
-    //  VOICE TOGGLE
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
+    //  COUNTDOWN
+    // ═════════════════════════════════════════════════════════════
+    IEnumerator ShowCountdown(float seconds)
+    {
+        SetSendInteractable(false);
+        float end = Time.time + seconds;
+
+        while (Time.time < end)
+        {
+            int secs = Mathf.CeilToInt(end - Time.time);
+            SetStatus("Wait " + secs + "s...");
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        SetStatus("READY");
+        SetSendInteractable(true);
+        countdownCoroutine = null;
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  VOICE
+    // ═════════════════════════════════════════════════════════════
     void ToggleVoice()
     {
-        if (!isRecording)
-            StartRecording();
-        else
-            StopRecordingAndAsk();
+        if (!isRecording) StartRecording();
+        else              StopRecordingAndAsk();
     }
 
     void StartRecording()
     {
-        if (Microphone.devices.Length == 0)
-        {
-            SetStatus("No microphone found!");
-            return;
-        }
+        if (Microphone.devices.Length == 0) { SetStatus("No mic found!"); return; }
 
         isRecording  = true;
-        recordedClip = Microphone.Start(
-            null, false,
-            MAX_RECORD_SECS, SAMPLE_RATE);
+        recordedClip = Microphone.Start(null, false, MAX_RECORD_SECS, SAMPLE_RATE);
 
-        SetStatus("🎙 Listening... click STOP when done");
-        SetBtnText(voiceButton, "⏹ STOP");
-
-        AddToChat(
-            "<color=#6C2FFF>🎙 Recording..." +
-            "</color>");
-
+        SetStatus("Listening...");
+        SetVoiceBtnRecording(true);
+        SpawnUserBubble("🎤 Recording... (tap mic to stop)");
         StartCoroutine(AutoStop());
     }
 
     IEnumerator AutoStop()
     {
-        yield return new WaitForSeconds(
-            MAX_RECORD_SECS);
-        if (isRecording)
-            StopRecordingAndAsk();
+        yield return new WaitForSeconds(MAX_RECORD_SECS);
+        if (isRecording) StopRecordingAndAsk();
     }
 
     void StopRecordingAndAsk()
@@ -542,180 +781,258 @@ public class AIDoubtSolver : MonoBehaviour
         if (!isRecording) return;
         isRecording = false;
 
-        int lastSample =
-            Microphone.GetPosition(null);
+        int lastSample = Microphone.GetPosition(null);
         Microphone.End(null);
+        SetVoiceBtnRecording(false);
+        SetStatus("Processing...");
 
-        SetBtnText(voiceButton, "🎙 VOICE");
-        SetStatus("Processing your voice...");
-
-        if (recordedClip == null ||
-            lastSample <= 0)
+        if (recordedClip == null || lastSample <= 0)
         {
-            SetStatus("No audio! Try again.");
+            SpawnBotBubble("I couldn't hear anything. Please try again.");
+            SetStatus("READY");
             return;
         }
 
-        float[] samples =
-            new float[lastSample *
-            recordedClip.channels];
+        float[] samples = new float[lastSample * recordedClip.channels];
         recordedClip.GetData(samples, 0);
+        byte[] wavBytes = ConvertToWav(samples, recordedClip.channels, SAMPLE_RATE);
 
-        byte[] wavBytes = ConvertToWav(
-            samples,
-            recordedClip.channels,
-            SAMPLE_RATE);
-
-        AddToChat(
-            "<color=#6C2FFF>You (voice):</color>" +
-            " [Sending to AI...]");
-
-        StartCoroutine(
-            AskGeminiAudio(wavBytes));
+        ShowTyping(true);
+        StartCoroutine(AskGeminiAudio(wavBytes));
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  GEMINI TEXT
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     IEnumerator AskGeminiText(string question)
     {
-        SetStatus("Thinking...");
-
-        if (sendButton != null)
-            sendButton.interactable = false;
-
         string prompt =
-            "You are a helpful AI teacher " +
-            "explaining Logistic Regression. " +
-            "The student is using an interactive " +
-            "Unity tutorial with live sigmoid curve " +
-            "and weight/bias sliders. " +
-            "Answer clearly and friendly in " +
-            "max 80 words. No markdown symbols. " +
+            "You are a helpful AI teacher explaining Logistic Regression. " +
+            "The student is using an interactive Unity tutorial with live " +
+            "sigmoid curve and weight/bias sliders. " +
+            "Answer clearly and warmly in max 80 words. No markdown symbols. " +
             "Student question: " + question;
 
         string body =
             "{\"contents\":[{\"parts\":" +
-            "[{\"text\":\"" +
-            EscapeJson(prompt) +
-            "\"}]}]}";
+            "[{\"text\":\"" + EscapeJson(prompt) + "\"}]}]}";
 
-        yield return StartCoroutine(
-            SendToGemini(
-                Encoding.UTF8.GetBytes(body)));
-
-        if (sendButton != null)
-            sendButton.interactable = true;
+        yield return StartCoroutine(SendToGemini(Encoding.UTF8.GetBytes(body)));
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  GEMINI AUDIO
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     IEnumerator AskGeminiAudio(byte[] wav)
     {
-        SetStatus("Sending voice to AI...");
-
-        string base64 =
-            Convert.ToBase64String(wav);
-
+        string base64 = Convert.ToBase64String(wav);
         string prompt =
-            "You are a helpful AI teacher " +
-            "explaining Logistic Regression. " +
+            "You are a helpful AI teacher for Logistic Regression. " +
             "The student asked a question via voice. " +
-            "Listen and answer clearly in " +
-            "max 80 words. No markdown symbols.";
+            "Answer clearly in max 80 words. No markdown.";
 
         string body =
             "{\"contents\":[{\"parts\":[" +
-            "{\"inline_data\":{" +
-            "\"mime_type\":\"audio/wav\"," +
-            "\"data\":\"" + base64 + "\"}}," +
-            "{\"text\":\"" +
-            EscapeJson(prompt) +
-            "\"}]}]}";
+            "{\"inline_data\":{\"mime_type\":\"audio/wav\",\"data\":\"" + base64 + "\"}}," +
+            "{\"text\":\"" + EscapeJson(prompt) + "\"}]}]}";
 
-        yield return StartCoroutine(
-            SendToGemini(
-                Encoding.UTF8.GetBytes(body)));
+        yield return StartCoroutine(SendToGemini(Encoding.UTF8.GetBytes(body)));
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  SEND TO GEMINI
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     IEnumerator SendToGemini(byte[] body)
     {
         string url = apiUrl + "?key=" + apiKey;
 
-        using (UnityWebRequest req =
-            new UnityWebRequest(url, "POST"))
+        using (UnityWebRequest req = new UnityWebRequest(url, "POST"))
         {
-            req.uploadHandler =
-                new UploadHandlerRaw(body);
-            req.downloadHandler =
-                new DownloadHandlerBuffer();
-            req.SetRequestHeader(
-                "Content-Type",
-                "application/json");
+            req.uploadHandler   = new UploadHandlerRaw(body);
+            req.downloadHandler = new DownloadHandlerBuffer();
+            req.SetRequestHeader("Content-Type", "application/json");
 
             yield return req.SendWebRequest();
 
+            ShowTyping(false);
+
             if (req.responseCode == 429)
             {
-                AddToChat(
-                    "<color=#FF4444>AI: " +
-                    "Too many requests! " +
-                    "Please wait 30 seconds " +
-                    "and try again.</color>");
-                SetStatus("Rate limit! Wait 30s.");
+                requestCooldown = 30f;
+                lastRequestTime = Time.time;
+                isRequestRunning = false;
+
+                SpawnBotBubble("I'm a little overwhelmed right now. Please wait 30 seconds and try again!");
+
+                if (countdownCoroutine != null) StopCoroutine(countdownCoroutine);
+                countdownCoroutine = StartCoroutine(ShowCountdown(requestCooldown));
                 yield break;
             }
 
-            if (req.result ==
-                UnityWebRequest.Result.Success)
+            if (req.result == UnityWebRequest.Result.Success)
             {
-                string answer =
-                    ParseResponse(
-                        req.downloadHandler.text);
+                string answer = ParseResponse(req.downloadHandler.text);
                 lastAnswer = answer;
 
-                AddToChat(
-                    "<color=#00FF88>AI Teacher:" +
-                    "</color> " + answer);
+                StartCoroutine(SpawnBotBubbleAnimated(answer, delay: 0.1f));
 
-                SetStatus("● READY");
+                requestCooldown  = 30f;
+                isRequestRunning = false;
+                SetStatus("READY");
+                SetSendInteractable(true);
+
                 StartCoroutine(Speak(answer));
             }
             else
             {
-                Debug.LogError(req.error);
-                Debug.LogError(
-                    req.downloadHandler.text);
-
-                AddToChat(
-                    "<color=#FF4444>AI: " +
-                    "Connection failed. " +
-                    "Check internet!</color>");
-                SetStatus("Error! Try again.");
+                Debug.LogError("[Gemini] " + req.error);
+                SpawnBotBubble("Connection failed. Please check your internet and try again.");
+                SetStatus("Error");
+                isRequestRunning = false;
+                SetSendInteractable(true);
             }
         }
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
+    //  BUBBLE SPAWNING
+    // ═════════════════════════════════════════════════════════════
+
+    /// <summary>Spawn a USER bubble immediately.</summary>
+    void SpawnUserBubble(string text)
+    {
+        if (userBubblePrefab == null || contentArea == null) return;
+
+        GameObject bubble = Instantiate(userBubblePrefab, contentArea);
+        SetBubbleText(bubble, text);
+        SetBubbleAlpha(bubble, 0f);
+        StartCoroutine(FadeInBubble(bubble, 0f));
+        StartCoroutine(ScrollToBottom());
+    }
+
+    /// <summary>Spawn a BOT bubble immediately.</summary>
+    void SpawnBotBubble(string text)
+    {
+        if (botBubblePrefab == null || contentArea == null) return;
+
+        GameObject bubble = Instantiate(botBubblePrefab, contentArea);
+        SetBubbleText(bubble, text);
+        SetBubbleAlpha(bubble, 0f);
+        StartCoroutine(FadeInBubble(bubble, 0f));
+        StartCoroutine(ScrollToBottom());
+    }
+
+    /// <summary>Spawn a BOT bubble after a short delay (simulates typing).</summary>
+    IEnumerator SpawnBotBubbleAnimated(string text, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        SpawnBotBubble(text);
+    }
+
+    void SetBubbleText(GameObject bubble, string text)
+    {
+        var tmp = bubble.GetComponentInChildren<TextMeshProUGUI>();
+        if (tmp != null) tmp.text = text;
+    }
+
+    void SetBubbleAlpha(GameObject bubble, float alpha)
+    {
+        var cg = bubble.GetComponent<CanvasGroup>();
+        if (cg == null) cg = bubble.AddComponent<CanvasGroup>();
+        cg.alpha = alpha;
+    }
+
+    IEnumerator FadeInBubble(GameObject bubble, float startDelay)
+    {
+        yield return new WaitForSeconds(startDelay);
+
+        var cg = bubble.GetComponent<CanvasGroup>();
+        if (cg == null) cg = bubble.AddComponent<CanvasGroup>();
+
+        // Also slide in from slight offset
+        RectTransform rt = bubble.GetComponent<RectTransform>();
+        Vector2 startPos = rt != null ? rt.anchoredPosition + new Vector2(0, -12f) : Vector2.zero;
+        Vector2 endPos   = rt != null ? rt.anchoredPosition : Vector2.zero;
+
+        float duration = 0.25f;
+        float elapsed  = 0f;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+            cg.alpha = t;
+            if (rt != null) rt.anchoredPosition = Vector2.Lerp(startPos, endPos, t);
+            yield return null;
+        }
+
+        cg.alpha = 1f;
+        StartCoroutine(ScrollToBottom());
+    }
+
+    void ClearChat()
+    {
+        if (contentArea == null) return;
+        foreach (Transform child in contentArea)
+            Destroy(child.gameObject);
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  TYPING INDICATOR
+    // ═════════════════════════════════════════════════════════════
+    void ShowTyping(bool show)
+    {
+        if (typingIndicator != null)
+            typingIndicator.SetActive(show);
+
+        if (show) StartCoroutine(ScrollToBottom());
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    //  AUTO SCROLL
+    // ═════════════════════════════════════════════════════════════
+    IEnumerator ScrollToBottom()
+    {
+        // Wait one frame for layout to update
+        yield return new WaitForEndOfFrame();
+        yield return new WaitForEndOfFrame();
+
+        if (chatScrollRect != null)
+        {
+            // Smooth scroll
+            StartCoroutine(SmoothScrollToBottom());
+        }
+    }
+
+    IEnumerator SmoothScrollToBottom()
+    {
+        float duration = 0.3f;
+        float elapsed  = 0f;
+        float startVal = chatScrollRect.verticalNormalizedPosition;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+            chatScrollRect.verticalNormalizedPosition = Mathf.Lerp(startVal, 0f, t);
+            yield return null;
+        }
+
+        chatScrollRect.verticalNormalizedPosition = 0f;
+    }
+
+    // ═════════════════════════════════════════════════════════════
     //  PARSE RESPONSE
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     string ParseResponse(string json)
     {
         try
         {
             int i = json.IndexOf("\"text\":");
-            if (i == -1)
-                return "No response received.";
-
-            int s = json.IndexOf("\"", i+7) + 1;
+            if (i == -1) return "No response received.";
+            int s = json.IndexOf("\"", i + 7) + 1;
             int e = json.IndexOf("\"", s);
-            if (e <= s)
-                return "Empty response.";
-
+            if (e <= s) return "Empty response.";
             return json.Substring(s, e - s)
                 .Replace("\\n",  "\n")
                 .Replace("\\\"", "\"")
@@ -728,143 +1045,97 @@ public class AIDoubtSolver : MonoBehaviour
         }
     }
 
-    // ═══════════════════════════════════════════
-    //  CHAT DISPLAY
-    // ═══════════════════════════════════════════
-    void AddToChat(string message)
-    {
-        chatHistory += message + "\n\n";
-        UpdateChatDisplay(chatHistory);
-    }
-
-    void UpdateChatDisplay(string text)
-    {
-        if (chatHistoryText != null)
-            chatHistoryText.text = text;
-    }
-
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  TEXT TO SPEECH
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     void SpeakLastAnswer()
     {
-        if (string.IsNullOrEmpty(lastAnswer))
-            return;
-        StartCoroutine(Speak(lastAnswer));
+        if (!string.IsNullOrEmpty(lastAnswer))
+            StartCoroutine(Speak(lastAnswer));
     }
 
     IEnumerator Speak(string text)
     {
-        SetStatus("▶ Speaking...");
-
+        SetStatus("Speaking...");
         string url =
-            "https://translate.google.com/" +
-            "translate_tts?ie=UTF-8&q=" +
-            UnityWebRequest.EscapeURL(text) +
-            "&tl=en&client=tw-ob";
+            "https://translate.google.com/translate_tts?ie=UTF-8&q=" +
+            UnityWebRequest.EscapeURL(text) + "&tl=en&client=tw-ob";
 
         using (UnityWebRequest req =
-            UnityWebRequestMultimedia
-            .GetAudioClip(url, AudioType.MPEG))
+            UnityWebRequestMultimedia.GetAudioClip(url, AudioType.MPEG))
         {
             yield return req.SendWebRequest();
-
-            if (req.result ==
-                UnityWebRequest.Result.Success)
+            if (req.result == UnityWebRequest.Result.Success && audioSource != null)
             {
-                if (audioSource != null)
-                {
-                    audioSource.clip =
-                        DownloadHandlerAudioClip
-                        .GetContent(req);
-                    audioSource.Play();
-                    yield return new WaitUntil(
-                        () => !audioSource.isPlaying);
-                }
+                audioSource.clip = DownloadHandlerAudioClip.GetContent(req);
+                audioSource.Play();
+                yield return new WaitUntil(() => !audioSource.isPlaying);
             }
         }
-
-        SetStatus("● READY");
+        SetStatus("READY");
     }
 
-    // ═══════════════════════════════════════════
-    //  CONVERT TO WAV
-    // ═══════════════════════════════════════════
-    byte[] ConvertToWav(float[] samples,
-        int channels, int sampleRate)
+    // ═════════════════════════════════════════════════════════════
+    //  WAV CONVERSION
+    // ═════════════════════════════════════════════════════════════
+    byte[] ConvertToWav(float[] samples, int channels, int sampleRate)
     {
         int byteCount = samples.Length * 2;
         int totalSize = 44 + byteCount;
         byte[] wav    = new byte[totalSize];
 
-        Encoding.ASCII.GetBytes("RIFF")
-            .CopyTo(wav, 0);
-        BitConverter.GetBytes(totalSize - 8)
-            .CopyTo(wav, 4);
-        Encoding.ASCII.GetBytes("WAVE")
-            .CopyTo(wav, 8);
-        Encoding.ASCII.GetBytes("fmt ")
-            .CopyTo(wav, 12);
-        BitConverter.GetBytes(16)
-            .CopyTo(wav, 16);
-        BitConverter.GetBytes((short)1)
-            .CopyTo(wav, 20);
-        BitConverter.GetBytes((short)channels)
-            .CopyTo(wav, 22);
-        BitConverter.GetBytes(sampleRate)
-            .CopyTo(wav, 24);
-        BitConverter.GetBytes(
-            sampleRate * channels * 2)
-            .CopyTo(wav, 28);
-        BitConverter.GetBytes(
-            (short)(channels * 2))
-            .CopyTo(wav, 32);
-        BitConverter.GetBytes((short)16)
-            .CopyTo(wav, 34);
-        Encoding.ASCII.GetBytes("data")
-            .CopyTo(wav, 36);
-        BitConverter.GetBytes(byteCount)
-            .CopyTo(wav, 40);
+        Encoding.ASCII.GetBytes("RIFF").CopyTo(wav, 0);
+        BitConverter.GetBytes(totalSize - 8).CopyTo(wav, 4);
+        Encoding.ASCII.GetBytes("WAVE").CopyTo(wav, 8);
+        Encoding.ASCII.GetBytes("fmt ").CopyTo(wav, 12);
+        BitConverter.GetBytes(16).CopyTo(wav, 16);
+        BitConverter.GetBytes((short)1).CopyTo(wav, 20);
+        BitConverter.GetBytes((short)channels).CopyTo(wav, 22);
+        BitConverter.GetBytes(sampleRate).CopyTo(wav, 24);
+        BitConverter.GetBytes(sampleRate * channels * 2).CopyTo(wav, 28);
+        BitConverter.GetBytes((short)(channels * 2)).CopyTo(wav, 32);
+        BitConverter.GetBytes((short)16).CopyTo(wav, 34);
+        Encoding.ASCII.GetBytes("data").CopyTo(wav, 36);
+        BitConverter.GetBytes(byteCount).CopyTo(wav, 40);
 
         int offset = 44;
         foreach (float s in samples)
         {
-            short val = (short)(
-                Mathf.Clamp(s, -1f, 1f)
-                * short.MaxValue);
-            BitConverter.GetBytes(val)
-                .CopyTo(wav, offset);
+            short val = (short)(Mathf.Clamp(s, -1f, 1f) * short.MaxValue);
+            BitConverter.GetBytes(val).CopyTo(wav, offset);
             offset += 2;
         }
-
         return wav;
     }
 
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     //  HELPERS
-    // ═══════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
     void SetStatus(string msg)
     {
-        if (statusText != null)
-            statusText.text = msg;
+        if (statusText != null) statusText.text = msg;
     }
 
-    void SetBtnText(Button btn, string text)
+    void SetSendInteractable(bool value)
     {
-        if (btn == null) return;
-        var tmp = btn
-            .GetComponentInChildren
-            <TextMeshProUGUI>();
-        if (tmp != null) tmp.text = text;
+        if (sendButton != null) sendButton.interactable = value;
     }
 
-    static string EscapeJson(string s)
+    void SetVoiceBtnRecording(bool recording)
     {
-        return s
-            .Replace("\\", "\\\\")
-            .Replace("\"", "\\\"")
-            .Replace("\n", "\\n")
-            .Replace("\r", "\\r")
-            .Replace("\t", "\\t");
+        if (voiceButton == null) return;
+        // Tint the button red while recording
+        var img = voiceButton.GetComponent<Image>();
+        if (img != null)
+            img.color = recording
+                ? new Color(0.9f, 0.2f, 0.2f, 1f)   // red = recording
+                : new Color(0.47f, 0.23f, 0.93f, 1f); // purple = idle
     }
+
+    static string EscapeJson(string s) =>
+        s.Replace("\\", "\\\\")
+         .Replace("\"", "\\\"")
+         .Replace("\n",  "\\n")
+         .Replace("\r",  "\\r")
+         .Replace("\t",  "\\t");
 }

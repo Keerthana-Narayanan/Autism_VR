@@ -1831,14 +1831,17 @@ MonoBehaviour:
   apiKey: 
   tutorialScreen: {fileID: 527357567}
   chatbotScreen: {fileID: 1648581628}
-  askAIButton: {fileID: 823838747}
-  chatHistoryText: {fileID: 1951160969}
+  closeButton: {fileID: 0}
+  chatScrollRect: {fileID: 0}
+  contentArea: {fileID: 0}
+  userBubblePrefab: {fileID: 0}
+  botBubblePrefab: {fileID: 0}
+  typingIndicator: {fileID: 0}
   questionInputField: {fileID: 660217970}
-  statusText: {fileID: 715771524}
   sendButton: {fileID: 914130655}
   voiceButton: {fileID: 440389038}
-  quitButton: {fileID: 1280390983}
   speakButton: {fileID: 1747851322}
+  statusText: {fileID: 715771524}
   audioSource: {fileID: 315043455}
   teachingManager: {fileID: 1350609778}
 --- !u!4 &315043457
@@ -6867,8 +6870,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1736273392}
   m_HandleRect: {fileID: 1736273391}
   m_Direction: 0
-  m_Value: 1
-  m_Size: 0.99999994
+  m_Value: 0
+  m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
