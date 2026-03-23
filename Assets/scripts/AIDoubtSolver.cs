@@ -562,7 +562,7 @@ public class AIDoubtSolver : MonoBehaviour
 {
     // ── API ──────────────────────────────────────────────────────
     [Header("Gemini API")]
-    public string apiKey = "AIzaSyCJzX40PpsOlLt3MwnOEbSJ5adepTolhYk";
+    public string apiKey = "AIzaSyDcOr9PY9kLZrv2jWrKUpTtv4gBya7LEd4";
     private string apiUrl =
         "https://generativelanguage.googleapis.com/v1beta/models/" +
         "gemini-2.5-flash-lite:generateContent";
@@ -620,6 +620,8 @@ public class AIDoubtSolver : MonoBehaviour
     // ═════════════════════════════════════════════════════════════
     void Start()
     {
+        Debug.Log("START RUNNING");
+
         ShowTutorial();
 
         if (closeButton        != null) closeButton.onClick.AddListener(CloseChatbot);
