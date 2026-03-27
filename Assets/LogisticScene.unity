@@ -1408,7 +1408,9 @@ MonoBehaviour:
   tutorialScreen: {fileID: 527357567}
   teachingManager: {fileID: 1350609778}
   askAIButton: {fileID: 823838747}
-  apiKey: AIzaSyAG7-jKOjWNQZnnkdEHPhc9tbtMytEJV8M
+  useCodeBuiltBubblesOnly: 1
+  apiKey: AIzaSyDlGl10FOHUfNAiI_ICCJlDYRSzqXF0wno
+  uiScale: 1.6
   attentionDebounceSeconds: 1
 --- !u!4 &315043457
 Transform:

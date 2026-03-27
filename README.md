@@ -30,9 +30,9 @@ To connect Muse2/BILSTM output into the loop, use:
 - Added inspector-controlled readability scaling (`uiScale`, default `1.6`) to enlarge fonts, header, input controls, bubbles, and suggestion chips for easier VR readability
 - Increased bubble text widths/heights so AI responses are visible and easier to read
 - Added explicit bubble layout sizing (`EnsureBubbleLayoutVisible`) after message text assignment to prevent zero-height/collapsed bubbles (responses may parse correctly but remain invisible without this)
-- Bubble templates now support using existing prefab assets from `Assets/Prefabs` (`userBubblePrefabAsset`, `botBubblePrefabAsset`) with runtime sanitization/fallback to generated templates
+- Bubble rendering now uses direct script-built row creation per message (no prefab/template dependency), to avoid hierarchy/layout mismatch causing invisible messages
 - Message text lookup/layout sizing is now prefab-hierarchy-agnostic (`FindMessageTextTMP`, `FindBubbleTransform`) so bot/user replies remain visible even if prefab child paths differ from `Bubble/MessageText`
-- UI built fully in code (no prefab dependencies required).
+- UI is now strictly script-only for chat rows, bubbles, and message text (prefab assignment and template cloning are removed from the chat setup path)
 - Matches your prototype style more closely:
   - header + status badge for attention state
   - greeting + “quick reply chips” (purple buttons)
@@ -43,6 +43,14 @@ To connect Muse2/BILSTM output into the loop, use:
 - Gemini calls happen in `ChatbotUIBuilder`:
   - text via `...:generateContent`
   - voice via `inline_data` audio/wav (microphone recording)
+- HTTP `429` (rate limit) is now handled with retry-aware cooldown:
+  - reads `Retry-After` response header when available
+  - starts cooldown timer automatically and shows a clear in-chat wait message instead of generic failure
+- Chat message appearance/scroll timing now uses unscaled time (`WaitForSecondsRealtime` + `Time.unscaledDeltaTime`) so bubbles still render even if gameplay pauses with `Time.timeScale = 0`
+- Scroll viewport clipping/layout has been hardened for visibility:
+  - `Viewport` uses `RectMask2D` instead of `Mask`
+  - chat rows now use explicit `LayoutElement` height + stretch anchors
+  - meta/suggestion rows also provide fixed preferred/min heights for stable stacking
 
 ## Model / ML assets
 
@@ -81,5 +89,6 @@ To connect Muse2/BILSTM output into the loop, use:
 - If chat responses are logged but not visible, check:
   - `AttentionSentisRunner.onnxModel` is assigned in Inspector (to avoid startup errors)
   - `ChatbotUIBuilder` has no runtime exception in `BuildScrollView` (content layout must initialize successfully)
+  - `ChatbotUIBuilder` logs `botTemplate=OK` and `[Bubble] text assigned OK ...` after sending a message
   - Unity Console is cleared after script updates to avoid confusing stale errors from previous runs
 
