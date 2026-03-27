@@ -29,6 +29,9 @@ public class TeachingAudioManager : MonoBehaviour
     public TextMeshProUGUI subtitleText;
 
     private bool isPaused = false;
+    private bool isInBreak = false;
+
+    public bool IsInBreak => isInBreak;
 
     void Start()
     {
@@ -47,6 +50,7 @@ public class TeachingAudioManager : MonoBehaviour
     public void PauseLesson()
     {
         isPaused = true;
+        isInBreak = false;
 
         if (narrationSource != null)
             narrationSource.Pause();
@@ -62,6 +66,7 @@ public class TeachingAudioManager : MonoBehaviour
     public void ResumeLesson()
     {
         isPaused = false;
+        isInBreak = false;
 
         if (narrationSource != null)
             narrationSource.UnPause();
@@ -79,19 +84,46 @@ public class TeachingAudioManager : MonoBehaviour
             yield return null;
     }
 
+    public void BreakLesson()
+    {
+        isPaused = true;
+        isInBreak = true;
+
+        if (narrationSource != null)
+            narrationSource.Pause();
+
+        if (musicSource != null)
+            musicSource.volume = 0.01f;
+
+        if (subtitleText != null)
+            subtitleText.text = "Drowsiness detected. Taking a short break...";
+    }
+
+    IEnumerator WaitForSecondsWithPause(float seconds)
+    {
+        // Waits for lesson time, respecting PauseLesson/BreakLesson.
+        float elapsed = 0f;
+        while (elapsed < seconds)
+        {
+            if (!isPaused)
+                elapsed += Time.deltaTime;
+            yield return null;
+        }
+    }
+
     IEnumerator RunFullLesson()
     {
         // INTRO
         SetSubtitle("Welcome to Logistic Regression!");
         yield return StartCoroutine(PlayAndWait(clip_Intro));
 
-        yield return new WaitForSeconds(1.5f);
+        yield return StartCoroutine(WaitForSecondsWithPause(1.5f));
 
         // SIGMOID
         SetSubtitle("This S-shaped curve is called the sigmoid function.");
         yield return StartCoroutine(PlayAndWait(clip_SigmoidExplain));
 
-        yield return new WaitForSeconds(1f);
+        yield return StartCoroutine(WaitForSecondsWithPause(1f));
 
         // =============================
         // WEIGHT DEMO (125 seconds)
@@ -101,25 +133,25 @@ public class TeachingAudioManager : MonoBehaviour
         narrationSource.Play();
 
         SetSubtitle("Watch the weight slider.");
-        yield return new WaitForSeconds(8f);
+        yield return StartCoroutine(WaitForSecondsWithPause(8f));
 
         SetSubtitle("Did you see that?");
-        yield return new WaitForSeconds(12f); // 20 - 8
+        yield return StartCoroutine(WaitForSecondsWithPause(12f)); // 20 - 8
 
         SetSubtitle("Now watch when we bring the weight close to zero.");
         yield return StartCoroutine(sliderController.AnimateWeightTo(0.1f, 4f));
-        yield return new WaitForSeconds(23f); // 47 - 24
+        yield return StartCoroutine(WaitForSecondsWithPause(23f)); // 47 - 24
 
         SetSubtitle("Look at that flat curve.");
-        yield return new WaitForSeconds(6f); // 53 - 47
+        yield return StartCoroutine(WaitForSecondsWithPause(6f)); // 53 - 47
 
         SetSubtitle("Now make the weight negative.");
         yield return StartCoroutine(sliderController.AnimateWeightTo(-2.5f, 4f));
-        yield return new WaitForSeconds(33f); // 86 - 53
+        yield return StartCoroutine(WaitForSecondsWithPause(33f)); // 86 - 53
 
         SetSubtitle("Resetting the weight back to normal.");
         yield return StartCoroutine(sliderController.AnimateWeightTo(1.5f, 3f));
-        yield return new WaitForSeconds(36f); // 122 - 86
+        yield return StartCoroutine(WaitForSecondsWithPause(36f)); // 122 - 86
 
         // =============================
         // BIAS DEMO (111 seconds)
@@ -129,22 +161,22 @@ public class TeachingAudioManager : MonoBehaviour
         narrationSource.Play();
 
         SetSubtitle("Move the bias slider.");
-        yield return new WaitForSeconds(19f);
+        yield return StartCoroutine(WaitForSecondsWithPause(19f));
 
         SetSubtitle("Did you notice the boundary sliding?");
-        yield return new WaitForSeconds(6f); // 25 - 19
+        yield return StartCoroutine(WaitForSecondsWithPause(6f)); // 25 - 19
 
         SetSubtitle("When bias becomes positive.");
         yield return StartCoroutine(sliderController.AnimateBiasTo(2.5f, 3f));
-        yield return new WaitForSeconds(29f); // 54 - 25
+        yield return StartCoroutine(WaitForSecondsWithPause(29f)); // 54 - 25
 
         SetSubtitle("When bias becomes negative.");
         yield return StartCoroutine(sliderController.AnimateBiasTo(-2.5f, 3f));
-        yield return new WaitForSeconds(4f); // 58 - 54
+        yield return StartCoroutine(WaitForSecondsWithPause(4f)); // 58 - 54
 
         SetSubtitle("Resetting bias back to zero.");
         yield return StartCoroutine(sliderController.AnimateBiasTo(0f, 3f));
-        yield return new WaitForSeconds(50f); // 108 - 58
+        yield return StartCoroutine(WaitForSecondsWithPause(50f)); // 108 - 58
 
         // =============================
         // DATA POINT DEMO (104 seconds)
@@ -154,17 +186,17 @@ public class TeachingAudioManager : MonoBehaviour
         narrationSource.Play();
 
         SetSubtitle("New data points appear.");
-        yield return new WaitForSeconds(9f);
+        yield return StartCoroutine(WaitForSecondsWithPause(9f));
 
         SetSubtitle("Red dots represent class zero.");
-        yield return new WaitForSeconds(4f); // 13 - 9
+        yield return StartCoroutine(WaitForSecondsWithPause(4f)); // 13 - 9
 
         SetSubtitle("Blue dots represent class one.");
         yield return StartCoroutine(dataPointManager.SpawnAllDotsAnimated());
-        yield return new WaitForSeconds(13f); // 26 - 13
+        yield return StartCoroutine(WaitForSecondsWithPause(13f)); // 26 - 13
 
         SetSubtitle("The decision boundary sits between the two groups.");
-        yield return new WaitForSeconds(15f); // 41 - 26
+        yield return StartCoroutine(WaitForSecondsWithPause(15f)); // 41 - 26
 
         // =============================
         // SUMMARY

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 4a9fa81a3e09ed147bce7d7af0f3ddf1
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - tutorialScreen: {instanceID: 0}
+  - teachingManager: {instanceID: 0}
+  - askAIButton: {instanceID: 0}
+  - userBubblePrefabAsset: {fileID: 7159836941161630065, guid: eefe78ef479002a4ebc648048e24c246, type: 3}
+  - botBubblePrefabAsset: {fileID: 5039539275251873982, guid: e77e1fae7abc0c841926d0c3d0786f2d, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
