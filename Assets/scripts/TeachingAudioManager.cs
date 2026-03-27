@@ -30,16 +30,23 @@ public class TeachingAudioManager : MonoBehaviour
 
     private bool isPaused = false;
     private bool isInBreak = false;
+    private float _initialNarrationVolume = -1f;
+    private float _initialMusicVolume = -1f;
 
     public bool IsInBreak => isInBreak;
 
     void Start()
     {
+        if (narrationSource != null) _initialNarrationVolume = narrationSource.volume;
+        if (musicSource != null) _initialMusicVolume = musicSource.volume;
+
         if (backgroundMusic != null && musicSource != null)
         {
             musicSource.clip = backgroundMusic;
             musicSource.loop = true;
-            musicSource.volume = 0.08f;
+            // Respect whatever the scene had unless it's unset.
+            if (_initialMusicVolume < 0f) _initialMusicVolume = 0.08f;
+            musicSource.volume = _initialMusicVolume;
             musicSource.Play();
         }
 
@@ -56,7 +63,7 @@ public class TeachingAudioManager : MonoBehaviour
             narrationSource.Pause();
 
         if (musicSource != null)
-            musicSource.volume = 0.03f;
+            musicSource.volume = (_initialMusicVolume > 0f) ? _initialMusicVolume * 0.35f : 0.03f;
 
         if (subtitleText != null)
             subtitleText.text = "Lesson paused. Ask your doubt!";
@@ -69,10 +76,13 @@ public class TeachingAudioManager : MonoBehaviour
         isInBreak = false;
 
         if (narrationSource != null)
+        {
+            if (_initialNarrationVolume > 0f) narrationSource.volume = _initialNarrationVolume;
             narrationSource.UnPause();
+        }
 
         if (musicSource != null)
-            musicSource.volume = 0.08f;
+            musicSource.volume = (_initialMusicVolume > 0f) ? _initialMusicVolume : 0.08f;
 
         if (subtitleText != null)
             subtitleText.text = "Lesson resumed. Welcome back!";
@@ -93,7 +103,7 @@ public class TeachingAudioManager : MonoBehaviour
             narrationSource.Pause();
 
         if (musicSource != null)
-            musicSource.volume = 0.01f;
+            musicSource.volume = (_initialMusicVolume > 0f) ? _initialMusicVolume * 0.15f : 0.01f;
 
         if (subtitleText != null)
             subtitleText.text = "Drowsiness detected. Taking a short break...";

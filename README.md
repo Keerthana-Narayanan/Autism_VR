@@ -15,13 +15,10 @@
 - `UNFOCUSED`:
   - pauses the lesson
   - auto-opens chatbot (unless user already opened it)
-- `DROWSY`:
-  - hides tutorial + chatbot
-  - triggers `TeachingAudioManager.BreakLesson()`
 
 To connect Muse2/BILSTM output into the loop, use:
 - `Assets/scripts/AttentionStateBridge.cs`
-  - call `OnAttentionClass(0|1|2)` or `OnAttentionStateChanged("FOCUSED"|"UNFOCUSED"|"DROWSY")`
+  - call `OnAttentionClass(0|1|2)` or `OnAttentionStateChanged("FOCUSED"|"UNFOCUSED")`
 
 ### Chatbot UI (implemented and improved)
 `Assets/scripts/ChatbotUIBuilder.cs` updates include:
@@ -33,6 +30,11 @@ To connect Muse2/BILSTM output into the loop, use:
 - Bubble rendering now uses direct script-built row creation per message (no prefab/template dependency), to avoid hierarchy/layout mismatch causing invisible messages
 - Message text lookup/layout sizing is now prefab-hierarchy-agnostic (`FindMessageTextTMP`, `FindBubbleTransform`) so bot/user replies remain visible even if prefab child paths differ from `Bubble/MessageText`
 - UI is now strictly script-only for chat rows, bubbles, and message text (prefab assignment and template cloning are removed from the chat setup path)
+- Removed the header focus badge UI (green focused indicator) while keeping attention-driven behavior intact
+- Default chat UI scale reduced (less “zoomed-in”)
+- `Ask AI Teacher` button is forced interactable on startup by `ChatbotUIBuilder`
+- `Ask AI Teacher` button now auto-finds by name/label and is force-enabled every frame to prevent accidental disabling by other scripts or parent `CanvasGroup`s
+- Logistic tutorial slider default `Background` visuals are disabled in `SliderController` to remove the persistent dark-blue overlay rectangle
 - Matches your prototype style more closely:
   - header + status badge for attention state
   - greeting + “quick reply chips” (purple buttons)
@@ -91,4 +93,14 @@ To connect Muse2/BILSTM output into the loop, use:
   - `ChatbotUIBuilder` has no runtime exception in `BuildScrollView` (content layout must initialize successfully)
   - `ChatbotUIBuilder` logs `botTemplate=OK` and `[Bubble] text assigned OK ...` after sending a message
   - Unity Console is cleared after script updates to avoid confusing stale errors from previous runs
+- UDP attention (Muse2 + Python -> Unity) integration:
+  - Python streamer: `ML/muse_udp_streamer.py`
+  - Unity receiver/thresholds: `Assets/scripts/MuseUdpAttentionThresholdController.cs`
+  - Behavior:
+    - `Unfocused` streak >= 20 consecutive UDP messages => open AI chat (`ChatbotUIBuilder.OpenChatbot()`)
+  - Notes:
+    - `staleResetSeconds` default increased to 60s to avoid streak resets due to brief UDP gaps
+    - Python streamer always sends every accepted window (required for Unity streak counting)
+    - Chat auto-open is rate-limited with `chatPopupCooldownSeconds` (default 20s) to avoid frequent popups
+    - Drowsy is mapped to Unfocused in `ML/muse_udp_streamer.py` (model remains 3-class, but Unity only uses Focused/Unfocused)
 

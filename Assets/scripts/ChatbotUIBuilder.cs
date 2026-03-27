@@ -28,7 +28,12 @@ public class ChatbotUIBuilder : MonoBehaviour
 
     [Header("UI Readability")]
     [Range(1.0f, 2.5f)]
-    public float uiScale = 1.6f;
+    public float uiScale = 1.15f;
+
+    [Header("Runtime overrides")]
+    [Tooltip("Forces uiScale at runtime (Inspector values can keep old zoom).")]
+    public bool forceUiScaleAtRuntime = true;
+    public float forcedUiScale = 1.15f;
 
     // ── runtime refs ──────────────────────────────────────────
     private GameObject     _chatScreen;
@@ -39,6 +44,7 @@ public class ChatbotUIBuilder : MonoBehaviour
     private Button         _voiceBtn;
     private GameObject     _typingIndicator;
     private AudioSource    _audioSource;
+    // Focus badge removed from UI (logic still runs without it)
     private TextMeshProUGUI _badgeText;
     private Image           _badgeBg;
 
@@ -91,12 +97,67 @@ public class ChatbotUIBuilder : MonoBehaviour
     // ═══════════════════════════════════════════════════════════
     void Start()
     {
+        // Ensure the chat UI isn't stuck with an old Inspector scale value.
+        if (forceUiScaleAtRuntime)
+            uiScale = Mathf.Clamp(forcedUiScale, 1.0f, 2.5f);
+
         _audioSource = gameObject.GetComponent<AudioSource>()
                     ?? gameObject.AddComponent<AudioSource>();
         BuildUI();
-        if (askAIButton != null)
-            askAIButton.onClick.AddListener(OpenChatbot);
+        if (askAIButton == null) AutoFindAskButton();
+        if (askAIButton != null) askAIButton.onClick.AddListener(OpenChatbot);
+        ForceEnableAskButton();
         ShowTutorial();
+    }
+
+    void Update()
+    {
+        // Keep it enabled even if another script/canvas group flips it off.
+        ForceEnableAskButton();
+    }
+
+    void ForceEnableAskButton()
+    {
+        if (askAIButton == null) AutoFindAskButton();
+        if (askAIButton == null) return;
+        askAIButton.enabled = true;
+        askAIButton.interactable = true;
+        // If a parent CanvasGroup is disabling interaction, fix that too.
+        var cgs = askAIButton.GetComponentsInParent<CanvasGroup>(true);
+        foreach (var cg in cgs)
+        {
+            cg.interactable = true;
+            cg.blocksRaycasts = true;
+            if (cg.alpha < 0.2f) cg.alpha = 1f;
+        }
+    }
+
+    void AutoFindAskButton()
+    {
+        // First try exact object name.
+        var go = GameObject.Find("Ask AI Teacher");
+        if (go != null) askAIButton = go.GetComponent<Button>();
+        if (askAIButton != null) return;
+
+        // Fallback: scan all buttons and match label text.
+        var buttons = FindObjectsOfType<Button>(true);
+        foreach (var b in buttons)
+        {
+            if (b == null) continue;
+            var txt = b.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (txt == null) continue;
+            var s = txt.text == null ? "" : txt.text.Trim().ToLowerInvariant();
+            if (s.Contains("ask ai") || s.Contains("ai teacher"))
+            {
+                askAIButton = b;
+                return;
+            }
+        }
+    }
+
+    public bool IsChatOpen()
+    {
+        return _chatScreen != null && _chatScreen.activeSelf;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -140,7 +201,7 @@ public class ChatbotUIBuilder : MonoBehaviour
         _chatScreen.SetActive(false);
 
         BuildHeader();
-        BuildDivider(_chatScreen.transform, -SU(64), -SU(63));
+        // Removed divider bar (was showing as an unwanted rectangle on some setups)
         BuildScrollView();
         BuildTypingIndicator();
         BuildInputBar();
@@ -181,17 +242,13 @@ public class ChatbotUIBuilder : MonoBehaviour
         sRT.anchoredPosition = new Vector2(SU(84),-SU(14));
         sRT.sizeDelta = new Vector2(SU(380),SU(24));
 
-        var badge = MakeGO("Badge", header.transform);
-        _badgeBg  = badge.AddComponent<Image>();
-        _badgeBg.color = new Color(0.08f,0.35f,0.12f,0.85f);
-        var bRT = badge.GetComponent<RectTransform>();
-        bRT.anchorMin = new Vector2(1,0.5f); bRT.anchorMax = new Vector2(1,0.5f);
-        bRT.pivot = new Vector2(1,0.5f);
-        bRT.anchoredPosition = new Vector2(-SU(74),0);
-        bRT.sizeDelta = new Vector2(SU(140),SU(34));
-        _badgeText = MakeTMP(badge.transform,"● FOCUSED",SU(13),Hex("4ADE80"),true);
-        StretchFill(_badgeText.GetComponent<RectTransform>());
-        _badgeText.alignment = TextAlignmentOptions.Center;
+        // Removed the focused badge UI completely (per requirement).
+        _badgeText = null;
+        _badgeBg = null;
+
+        // If an old ChatbotScreen instance exists from a previous run, make sure any leftover badge is hidden.
+        var leftoverBadge = header.transform.Find("Badge");
+        if (leftoverBadge != null) leftoverBadge.gameObject.SetActive(false);
 
         var closeGO  = MakeGO("CloseBtn", header.transform);
         var closeImg = closeGO.AddComponent<Image>(); closeImg.color = Hex("1A1535");
@@ -328,13 +385,7 @@ public class ChatbotUIBuilder : MonoBehaviour
             Hex("100B28"),
             new Vector2(0,0), new Vector2(1,0),
             new Vector2(0,0), new Vector2(0,SU(100)));
-
-        var div = MakeGO("Div",bar.transform);
-        div.AddComponent<Image>().color = Hex("2D1F5E");
-        var dRT = div.GetComponent<RectTransform>();
-        dRT.anchorMin = new Vector2(0,1); dRT.anchorMax = new Vector2(1,1);
-        dRT.pivot = new Vector2(0.5f,1); dRT.anchoredPosition = Vector2.zero;
-        dRT.sizeDelta = new Vector2(0,1);
+        // Removed input-bar divider line (was showing as an unwanted rectangle).
 
         var bg    = MakeGO("InputBg",bar.transform);
         var bgImg = bg.AddComponent<Image>(); bgImg.color = Hex("1A1040");
@@ -603,21 +654,24 @@ public class ChatbotUIBuilder : MonoBehaviour
 
     public void SetFocusState(string state)
     {
-        if (_badgeText == null || _badgeBg == null) return;
         string norm = NormalizeAttentionState(state);
         if (string.IsNullOrEmpty(norm)) return;
 
-        switch (norm)
+        // Badge UI is optional; keep behavior even when badge is removed.
+        if (_badgeText != null && _badgeBg != null)
         {
-            case "FOCUSED":
-                _badgeText.text  = "● FOCUSED";   _badgeText.color = Hex("4ADE80");
-                _badgeBg.color   = new Color(0.08f,0.35f,0.12f,0.85f); break;
-            case "UNFOCUSED":
-                _badgeText.text  = "● UNFOCUSED"; _badgeText.color = Hex("FACC15");
-                _badgeBg.color   = new Color(0.35f,0.28f,0.04f,0.85f); break;
-            case "DROWSY":
-                _badgeText.text  = "● DROWSY";    _badgeText.color = Hex("F87171");
-                _badgeBg.color   = new Color(0.35f,0.06f,0.06f,0.85f); break;
+            switch (norm)
+            {
+                case "FOCUSED":
+                    _badgeText.text = "● FOCUSED"; _badgeText.color = Hex("4ADE80");
+                    _badgeBg.color = new Color(0.08f, 0.35f, 0.12f, 0.85f); break;
+                case "UNFOCUSED":
+                    _badgeText.text = "● UNFOCUSED"; _badgeText.color = Hex("FACC15");
+                    _badgeBg.color = new Color(0.35f, 0.28f, 0.04f, 0.85f); break;
+                case "DROWSY":
+                    _badgeText.text = "● DROWSY"; _badgeText.color = Hex("F87171");
+                    _badgeBg.color = new Color(0.35f, 0.06f, 0.06f, 0.85f); break;
+            }
         }
 
         if (norm == _lastAttentionState) return;
@@ -631,18 +685,22 @@ public class ChatbotUIBuilder : MonoBehaviour
         switch (norm)
         {
             case "FOCUSED":
+                // Ensure Ask button stays usable.
+                ForceEnableAskButton();
                 if (teachingManager != null && teachingManager.IsInBreak && !chatOpen)
                     teachingManager.ResumeLesson();
                 if (_openedByAttention && chatOpen) CloseChatbotInternal(true,true);
                 else if (!chatOpen && tutorialScreen != null) tutorialScreen.SetActive(true);
                 break;
             case "UNFOCUSED":
+                ForceEnableAskButton();
                 if (!chatOpen)
                     OpenChatbotInternal(true,
                         "I noticed you might be a little unfocused. " +
                         "What part of the lesson is confusing? Ask me and I'll help.");
                 break;
             case "DROWSY":
+                ForceEnableAskButton();
                 if (chatOpen) CloseChatbotInternal(false,false);
                 _openedByAttention = false;
                 if (tutorialScreen  != null) tutorialScreen.SetActive(false);

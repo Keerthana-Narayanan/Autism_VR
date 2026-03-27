@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -21,6 +22,25 @@ public class SliderController : MonoBehaviour
         biasSlider.value = 0f;
         weightSlider.onValueChanged.AddListener(OnWeightChanged);
         biasSlider.onValueChanged.AddListener(OnBiasChanged);
+
+        // Remove default slider "Background" graphics that appear as a dark overlay block
+        // in this scene due to large slider rects.
+        HideSliderBackground(weightSlider);
+        HideSliderBackground(biasSlider);
+    }
+
+    void HideSliderBackground(Slider slider)
+    {
+        if (slider == null) return;
+        // Disable ANY child named "Background" (some slider hierarchies differ).
+        foreach (var t in slider.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == null) continue;
+            if (!string.Equals(t.name, "Background", StringComparison.OrdinalIgnoreCase)) continue;
+            var img = t.GetComponent<Image>();
+            if (img != null) img.enabled = false;
+            t.gameObject.SetActive(false);
+        }
     }
 
     void OnWeightChanged(float val)

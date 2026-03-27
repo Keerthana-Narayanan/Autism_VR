@@ -1408,9 +1408,10 @@ MonoBehaviour:
   tutorialScreen: {fileID: 527357567}
   teachingManager: {fileID: 1350609778}
   askAIButton: {fileID: 823838747}
-  useCodeBuiltBubblesOnly: 1
   apiKey: AIzaSyDlGl10FOHUfNAiI_ICCJlDYRSzqXF0wno
   uiScale: 1.6
+  forceUiScaleAtRuntime: 1
+  forcedUiScale: 1.15
   attentionDebounceSeconds: 1
 --- !u!4 &315043457
 Transform:
@@ -1866,6 +1867,8 @@ GameObject:
   - component: {fileID: 527357568}
   - component: {fileID: 527357570}
   - component: {fileID: 527357569}
+  - component: {fileID: 527357571}
+  - component: {fileID: 527357572}
   m_Layer: 5
   m_Name: TutorialScreen
   m_TagString: Untagged
@@ -1908,7 +1911,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 0.050980393, g: 0.105882354, b: 0.24313726, a: 0}
-  m_RaycastTarget: 1
+  m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -1932,6 +1935,54 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 527357567}
   m_CullTransparentMesh: 1
+--- !u!114 &527357571
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 527357567}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31141df66e369014fb4a1f66e0beb8ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MuseUdpAttentionThresholdController
+  listenHost: 0.0.0.0
+  listenPort: 12345
+  autoFind: 1
+  unfocusedStreakThreshold: 5
+  drowsyStreakThreshold: 5
+  staleResetSeconds: 8
+  pauseLessonOnUnfocused: 1
+  resumeLessonOnFocused: 1
+  chatbotUI: {fileID: 0}
+  teachingManager: {fileID: 0}
+  restPromptDialog: {fileID: 0}
+  disableSentisComponents: 1
+--- !u!114 &527357572
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 527357567}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31141df66e369014fb4a1f66e0beb8ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MuseUdpAttentionThresholdController
+  listenHost: 0.0.0.0
+  listenPort: 12345
+  autoFind: 1
+  unfocusedStreakThreshold: 5
+  drowsyStreakThreshold: 5
+  staleResetSeconds: 8
+  pauseLessonOnUnfocused: 1
+  resumeLessonOnFocused: 1
+  chatbotUI: {fileID: 0}
+  teachingManager: {fileID: 0}
+  restPromptDialog: {fileID: 0}
+  disableSentisComponents: 1
 --- !u!1 &536982718
 GameObject:
   m_ObjectHideFlags: 0
