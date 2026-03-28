@@ -1408,7 +1408,7 @@ MonoBehaviour:
   tutorialScreen: {fileID: 527357567}
   teachingManager: {fileID: 1350609778}
   askAIButton: {fileID: 823838747}
-  apiKey: AIzaSyDlGl10FOHUfNAiI_ICCJlDYRSzqXF0wno
+  apiKey: AIzaSyCZFWLcGlKfW4zlpMDgyDaQNVKXaMAKr_Y
   uiScale: 1.6
   forceUiScaleAtRuntime: 1
   forcedUiScale: 1.15
@@ -1951,13 +1951,13 @@ MonoBehaviour:
   listenPort: 12345
   autoFind: 1
   unfocusedStreakThreshold: 5
-  drowsyStreakThreshold: 5
   staleResetSeconds: 8
+  logStreakProgress: 0
   pauseLessonOnUnfocused: 1
   resumeLessonOnFocused: 1
+  chatPopupCooldownSeconds: 20
   chatbotUI: {fileID: 0}
   teachingManager: {fileID: 0}
-  restPromptDialog: {fileID: 0}
   disableSentisComponents: 1
 --- !u!114 &527357572
 MonoBehaviour:
@@ -1975,13 +1975,13 @@ MonoBehaviour:
   listenPort: 12345
   autoFind: 1
   unfocusedStreakThreshold: 5
-  drowsyStreakThreshold: 5
   staleResetSeconds: 8
+  logStreakProgress: 0
   pauseLessonOnUnfocused: 1
   resumeLessonOnFocused: 1
+  chatPopupCooldownSeconds: 20
   chatbotUI: {fileID: 0}
   teachingManager: {fileID: 0}
-  restPromptDialog: {fileID: 0}
   disableSentisComponents: 1
 --- !u!1 &536982718
 GameObject:

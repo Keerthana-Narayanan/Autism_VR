@@ -24,7 +24,7 @@ public class ChatbotUIBuilder : MonoBehaviour
 
     [Header("Gemini API")]
     [Tooltip("Paste your Google AI Studio API key here.")]
-    public string apiKey = "AIzaSyDlGl10FOHUfNAiI_ICCJlDYRSzqXF0wno";
+    public string apiKey = "AIzaSyCZFWLcGlKfW4zlpMDgyDaQNVKXaMAKr_Y";
 
     [Header("UI Readability")]
     [Range(1.0f, 2.5f)]
@@ -105,7 +105,9 @@ public class ChatbotUIBuilder : MonoBehaviour
                     ?? gameObject.AddComponent<AudioSource>();
         BuildUI();
         if (askAIButton == null) AutoFindAskButton();
-        if (askAIButton != null) askAIButton.onClick.AddListener(OpenChatbot);
+        // Do not AddListener(OpenChatbot) here: the Ask AI button OnClick is already
+        // assigned in the scene. Adding a runtime listener would double-invoke OpenChatbot
+        // (duplicate greeting, meta line, and suggestion chips).
         ForceEnableAskButton();
         ShowTutorial();
     }
